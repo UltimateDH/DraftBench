@@ -1,0 +1,15 @@
+# Node
+node_modules/
+.expo/
+dist/
+web-build/
+*.log
+
+# Python
+backend/venv/
+__pycache__/
+*.pyc
+
+# Env
+.env
+.env.local
