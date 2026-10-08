@@ -19,3 +19,10 @@ React Frontend (Vite) <---> FastAPI Backend <---> Local LLM (Qwen 2.5)
                               |
                               +---> ChromaDB (CDC Guidelines)
 ```
+
+## Models used
+
+```
+qwen2.5:3b-instruct
+nomic-embed-text
+```
