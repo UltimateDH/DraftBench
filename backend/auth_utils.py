@@ -5,7 +5,8 @@ from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from backend import models, database
+import bcrypt
+import models, database
 
 SECRET_KEY = os.getenv("SECRET_KEY", "your_fallback_secret_key")
 ALGORITHM = "HS256"
@@ -15,11 +16,18 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    # Convert password string to bytes and hash
+    pwd_bytes = password.encode('utf-8')
+    # Truncate to 72 bytes if necessary to prevent bcrypt limits
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(pwd_bytes[:72], salt)
+    return hashed.decode('utf-8')
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
-
+    pwd_bytes = plain_password.encode('utf-8')
+    hashed_bytes = hashed_password.encode('utf-8')
+    return bcrypt.checkpw(pwd_bytes[:72], hashed_bytes)
+    
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
