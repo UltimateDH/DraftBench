@@ -18,8 +18,8 @@ async def signup(
     db: Session = Depends(database.get_db)
 ):
     # Check if user or email already exists
-    existing_user = db.query(models.User).filter(
-        (models.User.username == username) | (models.User.email == email)
+    existing_user = db.query(models.users).filter(
+        (models.users.username == username) | (models.users.email == email)
     ).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Username or Email already registered")
@@ -42,7 +42,7 @@ async def signup(
         profile_pic_path = f"/static/profile_pics/{unique_filename}"
 
     hashed_pw = auth_utils.hash_password(password)
-    new_user = models.User(
+    new_user = models.users(
         username=username,
         email=email,
         hashed_password=hashed_pw,
@@ -59,7 +59,7 @@ def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(database.get_db)
 ):
-    user = db.query(models.User).filter(models.User.username == form_data.username).first()
+    user = db.query(models.users).filter(models.users.username == form_data.username).first()
     if not user or not auth_utils.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -71,5 +71,5 @@ def login(
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.get("/me", response_model=schemas.UserResponse)
-def get_user_profile(current_user: models.User = Depends(auth_utils.get_current_user)):
+def get_user_profile(current_user: models.users = Depends(auth_utils.get_current_user)):
     return current_user

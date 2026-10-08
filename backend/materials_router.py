@@ -25,7 +25,7 @@ ALLOWED_EXT = {
 async def upload_material(
     file: UploadFile = File(...),
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(auth_utils.get_current_user),
+    current_user: models.users = Depends(auth_utils.get_current_user),
 ):
     original = os.path.basename(file.filename or "untitled")
     ext = os.path.splitext(original)[1].lower()
@@ -56,7 +56,7 @@ async def upload_material(
 @router.get("", response_model=List[schemas.MaterialResponse])
 def list_materials(
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(auth_utils.get_current_user),
+    current_user: models.users = Depends(auth_utils.get_current_user),
 ):
     return (
         db.query(models.Material)
@@ -70,7 +70,7 @@ def list_materials(
 def delete_material(
     material_id: int,
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(auth_utils.get_current_user),
+    current_user: models.users = Depends(auth_utils.get_current_user),
 ):
     material = (
         db.query(models.Material)

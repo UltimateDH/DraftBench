@@ -34,7 +34,7 @@ def create_access_token(data: dict) -> str:
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(database.get_db)) -> models.User:
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(database.get_db)) -> models.users:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -48,7 +48,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     except JWTError:
         raise credentials_exception
 
-    user = db.query(models.User).filter(models.User.username == username).first()
+    user = db.query(models.users).filter(models.users.username == username).first()
     if user is None:
         raise credentials_exception
     return user
