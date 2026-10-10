@@ -34,3 +34,8 @@ email-validator
 uvicorn[standard]
 bcrypt==4.0.1
 ollama
+
+anthropic
+python-docx
+python-pptx
+openpyxl
