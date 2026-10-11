@@ -5,7 +5,7 @@ import pdfplumber
 import pymupdf
 
 pdf_path = os.path.join(
-    os.path.dirname(__file__), "data/pdfs/CDC_Grade1_Math.pdf"
+    os.path.dirname(__file__), "data/pdfs/"
 )
 output = os.path.join(os.path.dirname(__file__), "data/json")
 
@@ -88,46 +88,60 @@ def find_chapters(single_pdf_path):
 
 
 def process_pdf(single_pdf_path):
-  all_standards = []
-  if not os.path.exists(output):
-    os.makedirs(output, exist_ok=True)
-    print("Created folder for storing the json files!")
+    all_standards = []
+    
+    # Load existing data if file already exists so we don't overwrite
+    output_json_path = os.path.join(output, "cdc_standards.json")
+    if os.path.exists(output_json_path):
+        with open(output_json_path, "r", encoding="utf-8") as f:
+            try:
+                all_standards = json.load(f)
+            except Exception:
+                all_standards = []
 
-  chapters = find_chapters(single_pdf_path)
-  print(f"Starting extraction across {len(chapters)} tracked sections...")
+    chapters = find_chapters(single_pdf_path)
+    print(f"Starting extraction across {len(chapters)} tracked sections...")
 
-  with pdfplumber.open(single_pdf_path) as pdf:
-    for chap in chapters:
-      start = chap["start_page"] - 1  # 0-indexed for pdfplumber
-      end = chap["end_page"]
+    with pdfplumber.open(single_pdf_path) as pdf:
+        for chap in chapters:
+            start = chap["start_page"] - 1
+            end = chap["end_page"]
 
-      for page_num in range(start, end):
-        if page_num < len(pdf.pages):
-          page = pdf.pages[page_num]
-          text = page.extract_text()
+            for page_num in range(start, end):
+                if page_num < len(pdf.pages):
+                    page = pdf.pages[page_num]
+                    text = page.extract_text()
 
-          if text and len(text.strip()) > 50:
-            print(
-                f"Extracting competencies from: {chap['title']} (Page"
-                f" {page_num + 1})"
-            )
-            extracted = extract_from_each_page(text)
+                    if text and len(text.strip()) > 50:
+                        print(f"Extracting competencies from: {chap['title']} (Page {page_num + 1})")
+                        extracted = extract_from_each_page(text)
 
-            if isinstance(extracted, list) and extracted:
-              for item in extracted:
-                item["source_page"] = page_num + 1
-                item["chapter"] = chap["title"]
-              all_standards.extend(extracted)
+                        if isinstance(extracted, list) and extracted:
+                            for item in extracted:
+                                item["source_page"] = page_num + 1
+                                item["chapter"] = chap["title"]
+                                item["source_file"] = os.path.basename(single_pdf_path)  # Tag original filename
+                            all_standards.extend(extracted)
 
-  output_json_path = os.path.join(output, "cdc_standards.json")
-  with open(output_json_path, "w", encoding="utf-8") as f:
-    json.dump(all_standards, f, ensure_ascii=False, indent=2)
+    # Write merged results back
+    with open(output_json_path, "w", encoding="utf-8") as f:
+        json.dump(all_standards, f, ensure_ascii=False, indent=2)
 
-  print(
-      f"Extraction complete! Saved {len(all_standards)} competencies to"
-      f" {output_json_path}"
-  )
+    print(f"Finished {os.path.basename(single_pdf_path)}! Total standards stored so far: {len(all_standards)}")
 
 
 if __name__ == "__main__":
-  process_pdf(pdf_path)
+    if not os.path.exists(pdf_path):
+        print(f"Error: Directory '{pdf_path}' does not exist.")
+    else:
+        pdf_files = [f for f in os.listdir(pdf_path) if f.lower().endswith('.pdf')]
+        
+        print(f"Found {len(pdf_files)} PDF(s) to process in {pdf_path}\n")
+        
+        for filename in pdf_files:
+            full_pdf_path = os.path.join(pdf_path, filename)
+            print(f"==========================================")
+            print(f"Processing PDF: {filename}")
+            print(f"==========================================")
+            
+            process_pdf(full_pdf_path)
