@@ -22,3 +22,5 @@ class Material(Base):
     content_type = Column(String, nullable=True)
     size_bytes = Column(BigInteger, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+User = users

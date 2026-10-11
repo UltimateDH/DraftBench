@@ -105,3 +105,15 @@ export function listMaterials(token: string) {
 export async function deleteMaterial(token: string, id: number) {
   await request(`/materials/${id}`, { method: 'DELETE', headers: auth(token) });
 }
+
+// ---------- Chat ----------
+export type ChatTurn = { role: 'user' | 'assistant'; content: string };
+
+export async function askChat(token: string, materialIds: number[], message: string, history: ChatTurn[]) {
+  const r = (await request('/chat', {
+    method: 'POST',
+    headers: { ...auth(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ material_ids: materialIds, message, history }),
+  })) as { reply: string };
+  return r.reply;
+}

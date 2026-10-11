@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator, Alert, Image, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
+import { router } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { StatusBar } from 'expo-status-bar';
@@ -34,6 +35,7 @@ export default function Dashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const [selected, setSelected] = useState<number[]>([]);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -49,6 +51,17 @@ export default function Dashboard() {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+
+  const toggle = (id: number) =>
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  const goChat = () => {
+    const chosen = materials.filter((m) => selected.includes(m.id));
+    router.push({
+      pathname: '/chat',
+      params: { ids: chosen.map((m) => m.id).join(','), names: chosen.map((m) => m.filename).join('|') },
+    } as any);
+  };
 
   const upload = async (files: Photo[]) => {
     if (!token || !files.length) return;
@@ -96,6 +109,7 @@ export default function Dashboard() {
     try {
       await deleteMaterial(token, m.id);
       setMaterials((prev) => prev.filter((x) => x.id !== m.id));
+      setSelected((prev) => prev.filter((x) => x !== m.id));
     } catch (e: any) {
       setError(e.message);
     }
@@ -149,23 +163,34 @@ export default function Dashboard() {
         </View>
 
         <Text style={s.section}>Your materials</Text>
+        {materials.length > 0 && <Text style={s.hint}>Tap files to select them, then ask questions about them.</Text>}
         {loading ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} />
         ) : materials.length === 0 ? (
           <Text style={s.empty}>Nothing here yet. Upload your first document above.</Text>
         ) : (
           materials.map((m) => (
-            <View key={m.id} style={s.item}>
+            <Pressable key={m.id} onPress={() => toggle(m.id)} style={[s.item, selected.includes(m.id) && s.itemSelected]}>
+              <View style={[s.check, selected.includes(m.id) && s.checkOn]}>
+                {selected.includes(m.id) && <Text style={s.checkMark}>✓</Text>}
+              </View>
               <View style={s.badge}><Text style={s.badgeText}>{extOf(m.filename)}</Text></View>
               <View style={{ flex: 1 }}>
                 <Text style={s.itemName} numberOfLines={1}>{m.filename}</Text>
                 <Text style={s.itemMeta}>{formatSize(m.size_bytes)} • {new Date(m.created_at).toLocaleDateString()}</Text>
               </View>
               <Pressable onPress={() => remove(m)} hitSlop={10}><Text style={s.delete}>Delete</Text></Pressable>
-            </View>
+            </Pressable>
           ))
         )}
       </ScrollView>
+
+      {selected.length > 0 && (
+        <View style={s.bar}>
+          <Text style={s.barText}>{selected.length} selected</Text>
+          <Pressable onPress={goChat} style={s.barBtn}><Text style={s.barBtnText}>Ask questions</Text></Pressable>
+        </View>
+      )}
     </View>
   );
 }
@@ -191,7 +216,7 @@ const s = StyleSheet.create({
   logout: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
   body: { flex: 1, backgroundColor: colors.paper, borderTopLeftRadius: 32, borderTopRightRadius: 32, marginTop: -24 },
-  bodyContent: { padding: 22, paddingBottom: 48, width: '100%', maxWidth: 720, alignSelf: 'center' },
+  bodyContent: { padding: 22, paddingBottom: 120, width: '100%', maxWidth: 720, alignSelf: 'center' },
 
   uploadCard: { backgroundColor: colors.soft, borderRadius: 20, padding: 20, borderWidth: 1.5, borderColor: colors.border, borderStyle: 'dashed' },
   cardTitle: { fontSize: 20, fontWeight: '800', color: colors.text },
@@ -216,4 +241,18 @@ const s = StyleSheet.create({
   itemName: { fontWeight: '600', color: colors.text, fontSize: 15 },
   itemMeta: { color: colors.muted, fontSize: 13, marginTop: 2 },
   delete: { color: colors.danger, fontWeight: '600', fontSize: 14 },
+  hint: { color: colors.muted, fontSize: 13, marginTop: -6, marginBottom: 8 },
+  itemSelected: { backgroundColor: colors.soft, borderRadius: 12, paddingHorizontal: 8, marginHorizontal: -8 },
+  check: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  checkOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  checkMark: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  bar: {
+    position: 'absolute', left: 16, right: 16, bottom: 24, maxWidth: 520, alignSelf: 'center', width: '92%',
+    backgroundColor: colors.primaryDeep, borderRadius: 18, paddingVertical: 12, paddingHorizontal: 18,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 8,
+  },
+  barText: { color: '#fff', fontWeight: '600', fontSize: 15 },
+  barBtn: { backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 },
+  barBtnText: { color: colors.primary, fontWeight: '800', fontSize: 14 },
 });

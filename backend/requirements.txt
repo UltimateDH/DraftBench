@@ -34,5 +34,6 @@ email-validator
 uvicorn[standard]
 bcrypt==4.0.1
 ollama
+
 pdfplumber
 PyMuPDF
