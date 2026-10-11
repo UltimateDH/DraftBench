@@ -23,6 +23,6 @@ React Frontend (Vite) <---> FastAPI Backend <---> Local LLM (Qwen 2.5)
 ## Models used
 
 ```
-qwen2.5:3b-instruct
+qwen2.5:7b-instruct
 nomic-embed-text
 ```
