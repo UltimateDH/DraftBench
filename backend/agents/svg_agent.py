@@ -1,21 +1,22 @@
 import os
 import re
 import ollama
+import cairosvg
 
-def generate_educational_svg(description:str, filename_prefix:str,grade:int,lesson_topic:str="",iep_goal:str=""):
-    system_prompt=prompt = f"""You are an SVG XML coder producing special-education visual aids in the style of PECS / Boardmaker picture symbols.
+def generate_educational_svg(vdescription: str, filename_prefix: str, grade: int, lesson_topic: str = "", iep_goal: str = ""):
+    prompt = f"""You are an SVG XML coder producing special-education visual aids in the style of PECS / Boardmaker picture symbols.
 
     CONTEXT:
     - Grade: {grade}
     - Lesson topic: {lesson_topic or "general"}
     - IEP goal (reference only): {iep_goal or "not specified"}
-    - Icon to draw: {description}
+    - Icon to draw: {vdescription}
 
     STRICT OUTPUT RULES:
     1. Output ONLY valid SVG XML. Start with <svg and end with </svg>.
     2. Do NOT wrap in markdown code fences. No ``` blocks.
     3. No comments, no explanation before or after the SVG.
-    4. Root must include xmlns="http://www.w3.org/2000/svg" and viewBox="0 0 100 100".
+    4. Root must include xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" and viewBox="0 0 100 100".
 
     SPECIAL-EDUCATION DESIGN RULES (ASD / PECS style):
     1. LITERAL — depict exactly the object or action. No symbols, no abstraction, no metaphors.
@@ -32,14 +33,6 @@ def generate_educational_svg(description:str, filename_prefix:str,grade:int,less
     - Include a <title> element with a short literal description.
     - Include a <desc> element with one plain sentence explaining the icon.
 
-    EXAMPLE STRUCTURE (follow this shape, not the content):
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-    <title>Red circle with the number two</title>
-    <desc>A red circle with the digit two in the middle.</desc>
-    <circle cx="50" cy="50" r="35" fill="#e63946" stroke="#000000" stroke-width="3"/>
-    <path d="..." fill="#000000"/>
-    </svg>
-
     Output ONLY the SVG XML now."""
 
     response = ollama.chat(
@@ -55,27 +48,41 @@ def generate_educational_svg(description:str, filename_prefix:str,grade:int,less
         }
     )
 
-    raw=response["message"]["content"].strip()
+    raw = response["message"]["content"].strip()
     raw = re.sub(r'^```(?:svg|xml)?\s*', '', raw)
     raw = re.sub(r'\s*```$', '', raw)
     match = re.search(r'<svg[\s\S]*?</svg>', raw)
+    
     if not match:
-        print(f"[SVG] Model returned no valid <svg> block for: {description}")
         svg_code = (
-            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+            '<svg xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" viewBox="0 0 100 100">'
             '<title>Icon unavailable</title>'
             '<desc>Visual could not be generated.</desc>'
-            '<rect x="10" y="10" width="80" height="80" fill="none" '
-            'stroke="#000" stroke-width="3"/>'
+            '<rect x="10" y="10" width="80" height="80" fill="none" stroke="#000" stroke-width="3"/>'
             '</svg>'
         )
     else:
         svg_code = match.group(0)
 
     os.makedirs("data/exports/images", exist_ok=True)
-    clean_desc = re.sub(r'[^a-zA-Z0-9]', '_', description)[:20].lower()
-    file_path = os.path.join("data/exports/images", f"{filename_prefix}_{clean_desc}.svg")
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(svg_code)
-    return file_path
+    clean_desc = re.sub(r'[^a-zA-Z0-9]', '_', vdescription)[:20].lower()
+    base_name = f"{filename_prefix}_{clean_desc}"
+    svg_path = os.path.join("data/exports/images", f"{base_name}.svg")
+    png_path = os.path.join("data/exports/images", f"{base_name}.png")
 
+    with open(svg_path, "w", encoding="utf-8") as f:
+        f.write(svg_code)
+
+    try:
+        cairosvg.svg2png(url=svg_path, write_to=png_path, output_width=160, output_height=160)
+    except Exception as e:
+        print(f"[SVG Agent] Warning: SVG to PNG conversion failed: {e}")
+
+    # Remove temporary raw SVG
+    if os.path.exists(svg_path):
+        try:
+            os.remove(svg_path)
+        except Exception:
+            pass
+
+    return png_path

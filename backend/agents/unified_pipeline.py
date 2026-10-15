@@ -1,15 +1,23 @@
-import ollama
-import json
-import re
 import os
 import sys
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from rag import query_curriculum_rag
-from svg_agent import generate_educational_svg
+# Ensure root directory is on the path
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
-def classifiy_intent_and_extract_params(user_prompt:str):
-    
+import json
+import re
+import ollama
+
+from utils.labels import get_labels
+from rag import query_curriculum_rag
+from agents.svg_agent import generate_educational_svg
+from agents.markdown_builder import build_lesson_markdown
+from utils.pdf_generator import generate_styled_pdf
+from utils.pptx_generator import generate_styled_pptx
+
+def classify_intent_and_extract_params(user_prompt: str):
     system_prompt = """You are the Master Intent Classifier for DraftBench.
 Analyze the user prompt and return a strict JSON object with:
 {
@@ -24,7 +32,7 @@ CRITICAL RULES:
 - Set "language" to "nepali" if the prompt is written in Nepali/Devanagari script, otherwise set it to "english".
 - Output ONLY valid JSON."""
 
-    response=ollama.chat(
+    response = ollama.chat(
         model="qwen2.5:7b-instruct",
         messages=[
             {"role": "system", "content": system_prompt},
@@ -37,19 +45,19 @@ CRITICAL RULES:
         raw = response["message"]["content"]
         clean_json = re.search(r'\{.*\}', raw, re.DOTALL).group(0)
         return json.loads(clean_json)
-    except Exception: #for now i am just returning random class that i have more data of in RAG
+    except Exception:
+        has_devanagari = bool(re.search(r'[\u0900-\u097F]', user_prompt))
         return {
             "intent": "document",
             "grade": 7,
             "subject": "Mathematics",
+            "language": "nepali" if has_devanagari else "english",
             "needs_autism_adaptations": True
         }
 
-
-
-def run_unified_pipeline(user_prompt:str):
-    print("Step[1]...Classifiying the intent of the user...")
-    intent_data=classifiy_intent_and_extract_params(user_prompt=user_prompt)
+def run_unified_pipeline(user_prompt: str):
+    print("Step[1]...Classifying the intent of the user...")
+    intent_data = classify_intent_and_extract_params(user_prompt=user_prompt)
     intent = intent_data.get("intent", "document")
     language = intent_data.get("language", "english").lower()
     topic = intent_data.get("topic") or user_prompt
@@ -57,12 +65,15 @@ def run_unified_pipeline(user_prompt:str):
     subject = intent_data.get("subject", "Mathematics")
     needs_asd = intent_data.get("needs_autism_adaptations", True)
 
-    print("[Pipeline] Intent detected: {intent.upper()} | Grade: {grade} | Subject: {subject}")
+    print(f"[Pipeline] Intent detected: {intent.upper()} | Language: {language.upper()} | Grade: {grade} | Subject: {subject}")
+    
     print("Step[2]...Using RAG...")
-    cdc_context, sources=query_curriculum_rag(user_query=user_prompt, 
+    cdc_context, sources = query_curriculum_rag(
+        user_query=user_prompt, 
         grade_filter=grade, 
         subject_filter=subject, 
-        top_k=3)
+        top_k=3
+    )
 
     print("Step[3]...Planning content...")
     if language == "nepali":
@@ -163,14 +174,75 @@ CRITICAL:
         print(f"[Pipeline] Raw output:\n{raw[:500]}")
         return {"error": "planner_failed", "raw": raw}
 
-
-    print("Step[4]...Generating multiple svgs...")
-    svg_paths=[]
-    if intent in ["presentation", "document", "quiz"] :
-        for slide in plan.get("slides",[]):
-            visual_desc=slide.get("visual_desc") or f"{subject} concept icon"
+    print("Step[4]...Generating visual PNG assets...")
+    png_paths = []
+    if intent in ["presentation", "document", "quiz"]:
+        lesson_topic_str = plan.get("lesson_meta", {}).get("title", topic)
+        iep_goal_str = plan.get("iep_goal", {}).get("goal_statement_english", "")
+        for slide in plan.get("slides", []):
+            visual_desc = slide.get("visual_desc") or f"{subject} concept icon"
             try:
-                path = generate_educational_svg(visual_desc, f"G{grade}", grade)
-                svg_paths.append(path)
+                path = generate_educational_svg(
+                    vdescription=visual_desc,
+                    filename_prefix=f"G{grade}",
+                    grade=grade,
+                    lesson_topic=lesson_topic_str,
+                    iep_goal=iep_goal_str
+                )
+                png_paths.append(path)
+                slide["png_path"] = path
             except Exception as err:
-                print(f"[Pipeline] Error generating SVG for '{visual_desc}': {err}")
+                print(f"[Pipeline] Error generating PNG for '{visual_desc}': {err}")
+                slide["png_path"] = None
+
+    print(f"[Step 5]...Routing Execution for Intent: [{intent}]...")
+    os.makedirs("data/exports", exist_ok=True)
+    
+    master_text = build_lesson_markdown(
+        plan=plan,
+        subject=subject,
+        grade=grade,
+        language=language,
+        sources=sources
+    )
+
+    execution_result = {
+        "intent": intent,
+        "grade": grade,
+        "subject": subject,
+        "language": language,
+        "sources": sources,
+        "plan_json": plan,
+        "image_assets": png_paths,
+        "files": {}
+    }
+
+    if intent == "chat":
+        execution_result["response_text"] = master_text
+
+    elif intent == "presentation":
+        pptx_path = f"data/exports/DraftBench_G{grade}_{subject}_{language.capitalize()}_Presentation.pptx"
+        formatted_slides = [
+            {
+                "title": s.get("title"),
+                "bullets": s.get("bullets") + [f"Script: {s.get('teacher_script')}"] if s.get("teacher_script") else s.get("bullets")
+            }
+            for s in plan.get("slides", [])
+        ]
+        generate_styled_pptx(formatted_slides, pptx_path, grade, subject, png_paths,language=language)
+        execution_result["response_text"] = "Presentation generated successfully."
+        execution_result["files"] = {"pptx": pptx_path}
+
+    elif intent == "quiz":
+        pdf_path = f"data/exports/DraftBench_G{grade}_{subject}_{language.capitalize()}_Quiz.pdf"
+        generate_styled_pdf(master_text, pdf_path, png_paths, intent="quiz", language=language, grade=grade, subject=subject)
+        execution_result["response_text"] = "Quiz assessment sheet compiled successfully."
+        execution_result["files"] = {"pdf": pdf_path}
+
+    else:  # Document
+        pdf_path = f"data/exports/DraftBench_G{grade}_{subject}_{language.capitalize()}_Report.pdf"
+        generate_styled_pdf(master_text, pdf_path, png_paths, intent="document", language=language, grade=grade, subject=subject)
+        execution_result["response_text"] = "Comprehensive IEP Document compiled successfully."
+        execution_result["files"] = {"pdf": pdf_path}
+
+    return execution_result
