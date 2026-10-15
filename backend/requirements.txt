@@ -8,6 +8,9 @@ python-dotenv>=1.0.1
 python-multipart>=0.0.9
 supabase
 psycopg2-binary
+psycopg_c
+psycopg
+psycopg[binary]
 werkzeug
 pydantic[email]
 passlib[bcrypt]
