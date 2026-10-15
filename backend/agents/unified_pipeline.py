@@ -17,6 +17,62 @@ from agents.markdown_builder import build_lesson_markdown
 from utils.pdf_generator import generate_styled_pdf
 from utils.pptx_generator import generate_styled_pptx
 
+
+SESSION_STORE = {}
+
+def get_or_update_session(session_id: str, current_params: dict) -> dict:
+    
+    if session_id not in SESSION_STORE:
+        SESSION_STORE[session_id] = {
+            "grade": 7,
+            "subject": "Mathematics",
+            "language": "english",
+            "topic": None
+        }
+    
+    session = SESSION_STORE[session_id]
+    # Update state if new explicit values were provided, else fallback to memory
+    for key in ["grade", "subject", "language", "topic"]:
+        if current_params.get(key):
+            session[key] = current_params[key]
+            
+    return session
+
+
+
+def evaluate_asd_plan(plan: dict, language: str) -> tuple[int, list]:
+    feedback = []
+    score = 10
+
+    # Rule 1: Max 3 bullets per slide & literal sentence length
+    for idx, slide in enumerate(plan.get("slides", []), 1):
+        bullets = slide.get("bullets", [])
+        if len(bullets) > 3:
+            score -= 2
+            feedback.append(f"Slide {idx} has {len(bullets)} bullets (Max 3 allowed).")
+        for b in bullets:
+            if len(b.split()) > 10:
+                score -= 1
+                feedback.append(f"Slide {idx} bullet '{b}' exceeds 10 words.")
+
+    # Rule 2: Measurable IEP Goal
+    iep = plan.get("iep_goal", {})
+    if not iep.get("baseline_probe") or not iep.get("measurable_criteria"):
+        score -= 2
+        feedback.append("IEP Goal is missing measurable criteria or baseline probe.")
+
+    # Rule 3: Pure Nepali language check (No Hindi terms)
+    if language == "nepali":
+        raw_str = json.dumps(plan, ensure_ascii=False)
+        prohibited = ['और', 'दशक', 'मूल्य ज्ञात करना', 'सैकड़ा', 'ज्ञात कीजिए', 'अंतर']
+        found = [w for w in prohibited if w in raw_str]
+        if found:
+            score -= 3
+            feedback.append(f"Replace Hindi terms {found} with pure Nepali terms ('र', 'दहाइ', etc.).")
+
+    return score, feedback
+
+
 def classify_intent_and_extract_params(user_prompt: str):
     system_prompt = """You are the Master Intent Classifier for DraftBench.
 Analyze the user prompt and return a strict JSON object with:
@@ -55,15 +111,17 @@ CRITICAL RULES:
             "needs_autism_adaptations": True
         }
 
-def run_unified_pipeline(user_prompt: str):
+def run_unified_pipeline(user_prompt: str,session_id: str = "default_session"):
     print("Step[1]...Classifying the intent of the user...")
-    intent_data = classify_intent_and_extract_params(user_prompt=user_prompt)
-    intent = intent_data.get("intent", "document")
-    language = intent_data.get("language", "english").lower()
-    topic = intent_data.get("topic") or user_prompt
-    grade = intent_data.get("grade", 7)
-    subject = intent_data.get("subject", "Mathematics")
-    needs_asd = intent_data.get("needs_autism_adaptations", True)
+    extracted_params = classify_intent_and_extract_params(user_prompt)
+    session = get_or_update_session(session_id, extracted_params)
+    
+    intent = extracted_params.get("intent", "document")
+    language = extracted_params.get("language", "english").lower()
+    topic = extracted_params.get("topic") or user_prompt
+    grade = extracted_params.get("grade", 7)
+    subject = extracted_params.get("subject", "Mathematics")
+    needs_asd = extracted_params.get("needs_autism_adaptations", True)
 
     print(f"[Pipeline] Intent detected: {intent.upper()} | Language: {language.upper()} | Grade: {grade} | Subject: {subject}")
     
@@ -76,16 +134,45 @@ def run_unified_pipeline(user_prompt: str):
     )
 
     print("Step[3]...Planning content...")
+    print("Step[3]...Planning content...")
+
+    # Load / merge session parameters from memory store
+    session = get_or_update_session(session_id, extracted_params)
+    language = session["language"]
+    grade = session["grade"]
+    subject = session["subject"]
+    topic = extracted_params.get("topic") or session["topic"] or user_prompt
+
     if language == "nepali":
         lang_instruction = """LANGUAGE POLICY: 100% PURE NEPALI (नेपाली).
 - Write all titles, slides, bullets, teacher scripts, and IEP goals strictly in pure Nepali using Devanagari script.
 - ABSOLUTELY PROHIBITED HINDI WORDS: 'और', 'दशक', 'मूल्य ज्ञात करना', 'सैकड़ा', 'ज्ञात कीजिए', 'अंतर'.
-- MANDATORY NEPALI TERMS: Use 'र', 'दहाइ', 'मान पत्ता लगाउने', 'सय', 'पत्ता लगाउनुहोस्', 'फरक'."""
+- MANDATORY NEPALI TERMS: Use 'र', 'दहाइ', 'मान पत्ता लगाउने', 'सय', 'पत्ता लगाउनुहोस्', 'फरक'.
+"""
     else:
         lang_instruction = """LANGUAGE POLICY: 100% PROFESSIONAL ENGLISH.
-- Write all content in clean, professional English. Do not use Nepali script."""
+- Write all content in clean, professional English. Do not use Nepali script.
+"""
 
-    planner_prompt = f"""You are an expert special education content designer for Autism Spectrum Disorder (ASD), grounded in Nepal's CDC curriculum.
+    evaluator_feedback = []
+    attempt = 0
+    max_attempts = 3
+    plan = {}
+
+    while attempt < max_attempts:
+        attempt += 1
+        print(f"  [CoIEP Loop] Planner Pass {attempt}/{max_attempts}...")
+
+        # Inject evaluator feedback if previous attempt was rejected
+        feedback_str = ""
+        if evaluator_feedback:
+            feedback_str = (
+                "\nCRITICAL CORRECTIONS REQUIRED FROM EVALUATOR:\n"
+                + "\n".join(f"- {item}" for item in evaluator_feedback)
+                + "\n"
+            )
+
+        planner_prompt = f"""You are an expert special education content designer for Autism Spectrum Disorder (ASD), grounded in Nepal's CDC curriculum.
 
 {lang_instruction}
 
@@ -94,7 +181,7 @@ CDC CONTEXT (from RAG):
 
 TEACHER REQUEST: {user_prompt}
 TOPIC: {topic} | GRADE: {grade} | SUBJECT: {subject}
-
+{feedback_str}
 DESIGN RULES (evidence-based ASD practices):
 1. LITERAL LANGUAGE ONLY — no idioms, metaphors, or sarcasm. Every sentence <= 10 words.
 2. ONE CONCEPT PER SLIDE — maximum 3 bullets per slide.
@@ -155,24 +242,36 @@ CRITICAL:
 - Output ONLY valid JSON. No markdown fences, no commentary.
 - If a field cannot be filled, use null — never invent facts."""
 
-    response = ollama.chat(
-        model="qwen2.5:7b-instruct",
-        messages=[
-            {"role": "system", "content": "You output only valid JSON. You never add markdown or commentary."},
-            {"role": "user", "content": planner_prompt}
-        ],
-        options={"temperature": 0.3, "num_predict": 2500, "format": "json"}
-    )
+        response = ollama.chat(
+            model="qwen2.5:7b-instruct",
+            messages=[
+                {"role": "system", "content": "You output only valid JSON. You never add markdown or commentary."},
+                {"role": "user", "content": planner_prompt}
+            ],
+            options={"temperature": 0.3, "num_predict": 2500, "format": "json"}
+        )
 
-    try:
-        raw = response["message"]["content"]
-        clean_json = re.search(r'\{.*\}', raw, re.DOTALL).group(0)
-        plan = json.loads(clean_json)
-        print(f"[Pipeline] Plan generated: {len(plan.get('slides', []))} slides | IEP goal present: {bool(plan.get('iep_goal'))}")
-    except Exception as e:
-        print(f"[Pipeline] Planner failed to produce valid JSON: {e}")
-        print(f"[Pipeline] Raw output:\n{raw[:500]}")
-        return {"error": "planner_failed", "raw": raw}
+        try:
+            raw = response["message"]["content"]
+            clean_json = re.search(r'\{.*\}', raw, re.DOTALL).group(0)
+            plan = json.loads(clean_json)
+            
+            # --- Evaluate generated plan against ASD and Language standards ---
+            score, evaluator_feedback = evaluate_asd_plan(plan, language)
+            print(f"  [CoIEP Evaluator] Score: {score}/10")
+
+            if score >= 8:
+                print(f"[Pipeline] Plan passed evaluator check on attempt {attempt}.")
+                break
+            else:
+                print(f"  [CoIEP Evaluator] Rejected. Re-running loop with feedback...")
+
+        except Exception as e:
+            print(f"[Pipeline] Planner failed to produce valid JSON: {e}")
+            evaluator_feedback = [f"Failed to produce valid JSON format: {str(e)}"]
+
+    if not plan:
+        return {"error": "planner_failed"}
 
     print("Step[4]...Generating visual PNG assets...")
     png_paths = []
