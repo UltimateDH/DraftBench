@@ -1,14 +1,13 @@
 import os
 import sys
-
-# Ensure root directory is on the path
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
-
 import json
 import re
 import ollama
+
+# Ensure project root is in python path
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 from utils.labels import get_labels
 from rag import query_curriculum_rag
@@ -17,11 +16,12 @@ from agents.markdown_builder import build_lesson_markdown
 from utils.pdf_generator import generate_styled_pdf
 from utils.pptx_generator import generate_styled_pptx
 
-
+# Global in-memory session store for state persistence across turns
 SESSION_STORE = {}
 
+
 def get_or_update_session(session_id: str, current_params: dict) -> dict:
-    
+    """Retrieve or update in-memory session parameters across chat turns."""
     if session_id not in SESSION_STORE:
         SESSION_STORE[session_id] = {
             "grade": 7,
@@ -29,22 +29,24 @@ def get_or_update_session(session_id: str, current_params: dict) -> dict:
             "language": "english",
             "topic": None
         }
-    
+
     session = SESSION_STORE[session_id]
-    # Update state if new explicit values were provided, else fallback to memory
     for key in ["grade", "subject", "language", "topic"]:
         if current_params.get(key):
             session[key] = current_params[key]
-            
+
     return session
 
 
-
 def evaluate_asd_plan(plan: dict, language: str) -> tuple[int, list]:
+    """
+    Evaluator Agent: Reviews generated plan against ASD evidence-based rubric
+    and strict language policies (pure Devanagari Nepali vs. English).
+    """
     feedback = []
     score = 10
 
-    # Rule 1: Max 3 bullets per slide & literal sentence length
+    # Rule 1: Max 3 bullets per slide & strict word count limits
     for idx, slide in enumerate(plan.get("slides", []), 1):
         bullets = slide.get("bullets", [])
         if len(bullets) > 3:
@@ -53,15 +55,15 @@ def evaluate_asd_plan(plan: dict, language: str) -> tuple[int, list]:
         for b in bullets:
             if len(b.split()) > 10:
                 score -= 1
-                feedback.append(f"Slide {idx} bullet '{b}' exceeds 10 words.")
+                feedback.append(f"Slide {idx} bullet '{b}' exceeds 10 words limit.")
 
-    # Rule 2: Measurable IEP Goal
+    # Rule 2: Measurable IEP Goal validation
     iep = plan.get("iep_goal", {})
     if not iep.get("baseline_probe") or not iep.get("measurable_criteria"):
         score -= 2
         feedback.append("IEP Goal is missing measurable criteria or baseline probe.")
 
-    # Rule 3: Pure Nepali language check (No Hindi terms)
+    # Rule 3: Pure Nepali policy enforcement (Prohibit Hindi loanwords)
     if language == "nepali":
         raw_str = json.dumps(plan, ensure_ascii=False)
         prohibited = ['और', 'दशक', 'मूल्य ज्ञात करना', 'सैकड़ा', 'ज्ञात कीजिए', 'अंतर']
@@ -73,7 +75,8 @@ def evaluate_asd_plan(plan: dict, language: str) -> tuple[int, list]:
     return score, feedback
 
 
-def classify_intent_and_extract_params(user_prompt: str):
+def classify_intent_and_extract_params(user_prompt: str) -> dict:
+    """Classifies user intent and extracts educational metadata from prompt."""
     system_prompt = """You are the Master Intent Classifier for DraftBench.
 Analyze the user prompt and return a strict JSON object with:
 {
@@ -86,7 +89,8 @@ Analyze the user prompt and return a strict JSON object with:
 }
 CRITICAL RULES:
 - Set "language" to "nepali" if the prompt is written in Nepali/Devanagari script, otherwise set it to "english".
-- Output ONLY valid JSON."""
+- Output ONLY valid JSON.
+"""
 
     response = ollama.chat(
         model="qwen2.5:7b-instruct",
@@ -111,37 +115,33 @@ CRITICAL RULES:
             "needs_autism_adaptations": True
         }
 
-def run_unified_pipeline(user_prompt: str,session_id: str = "default_session"):
-    print("Step[1]...Classifying the intent of the user...")
+
+def run_unified_pipeline(user_prompt: str, session_id: str = "default_session") -> dict:
+    """Executes the complete DraftBench pipeline with self-correction and multi-format exporting."""
+    # --- Step 1: Intent Classification & Session State Synchronization ---
+    print("Step[1]...Classifying intent & resolving session state...")
     extracted_params = classify_intent_and_extract_params(user_prompt)
     session = get_or_update_session(session_id, extracted_params)
-    
+
     intent = extracted_params.get("intent", "document")
-    language = extracted_params.get("language", "english").lower()
-    topic = extracted_params.get("topic") or user_prompt
-    grade = extracted_params.get("grade", 7)
-    subject = extracted_params.get("subject", "Mathematics")
-    needs_asd = extracted_params.get("needs_autism_adaptations", True)
-
-    print(f"[Pipeline] Intent detected: {intent.upper()} | Language: {language.upper()} | Grade: {grade} | Subject: {subject}")
-    
-    print("Step[2]...Using RAG...")
-    cdc_context, sources = query_curriculum_rag(
-        user_query=user_prompt, 
-        grade_filter=grade, 
-        subject_filter=subject, 
-        top_k=3
-    )
-
-    print("Step[3]...Planning content...")
-    print("Step[3]...Planning content...")
-
-    # Load / merge session parameters from memory store
-    session = get_or_update_session(session_id, extracted_params)
     language = session["language"]
     grade = session["grade"]
     subject = session["subject"]
     topic = extracted_params.get("topic") or session["topic"] or user_prompt
+
+    print(f"[Pipeline] Intent: {intent.upper()} | Language: {language.upper()} | Grade: {grade} | Subject: {subject}")
+
+    # --- Step 2: RAG Context Retrieval ---
+    print("Step[2]...Retrieving CDC Curriculum Context via RAG...")
+    cdc_context, sources = query_curriculum_rag(
+        user_query=user_prompt,
+        grade_filter=grade,
+        subject_filter=subject,
+        top_k=3
+    )
+
+    # --- Step 3: CoIEP Writer-Evaluator Loop ---
+    print("Step[3]...Planning content with CoIEP Evaluator Loop...")
 
     if language == "nepali":
         lang_instruction = """LANGUAGE POLICY: 100% PURE NEPALI (नेपाली).
@@ -163,7 +163,6 @@ def run_unified_pipeline(user_prompt: str,session_id: str = "default_session"):
         attempt += 1
         print(f"  [CoIEP Loop] Planner Pass {attempt}/{max_attempts}...")
 
-        # Inject evaluator feedback if previous attempt was rejected
         feedback_str = ""
         if evaluator_feedback:
             feedback_str = (
@@ -255,24 +254,24 @@ CRITICAL:
             raw = response["message"]["content"]
             clean_json = re.search(r'\{.*\}', raw, re.DOTALL).group(0)
             plan = json.loads(clean_json)
-            
-            # --- Evaluate generated plan against ASD and Language standards ---
+
             score, evaluator_feedback = evaluate_asd_plan(plan, language)
             print(f"  [CoIEP Evaluator] Score: {score}/10")
 
             if score >= 8:
-                print(f"[Pipeline] Plan passed evaluator check on attempt {attempt}.")
+                print(f"[Pipeline] Plan passed evaluator check on pass {attempt}.")
                 break
             else:
-                print(f"  [CoIEP Evaluator] Rejected. Re-running loop with feedback...")
+                print("  [CoIEP Evaluator] Rejected. Regenerating with feedback...")
 
         except Exception as e:
-            print(f"[Pipeline] Planner failed to produce valid JSON: {e}")
+            print(f"[Pipeline] Planner error on pass {attempt}: {e}")
             evaluator_feedback = [f"Failed to produce valid JSON format: {str(e)}"]
 
     if not plan:
         return {"error": "planner_failed"}
 
+    # --- Step 4: Visual PECS SVG/PNG Generation ---
     print("Step[4]...Generating visual PNG assets...")
     png_paths = []
     if intent in ["presentation", "document", "quiz"]:
@@ -294,9 +293,10 @@ CRITICAL:
                 print(f"[Pipeline] Error generating PNG for '{visual_desc}': {err}")
                 slide["png_path"] = None
 
-    print(f"[Step 5]...Routing Execution for Intent: [{intent}]...")
+    # --- Step 5: Document Building & Format Exporting ---
+    print(f"Step[5]...Routing Execution for Intent: [{intent.upper()}]...")
     os.makedirs("data/exports", exist_ok=True)
-    
+
     master_text = build_lesson_markdown(
         plan=plan,
         subject=subject,
@@ -306,6 +306,7 @@ CRITICAL:
     )
 
     execution_result = {
+        "session_id": session_id,
         "intent": intent,
         "grade": grade,
         "subject": subject,
@@ -324,23 +325,35 @@ CRITICAL:
         formatted_slides = [
             {
                 "title": s.get("title"),
-                "bullets": s.get("bullets") + [f"Script: {s.get('teacher_script')}"] if s.get("teacher_script") else s.get("bullets")
+                "bullets": s.get("bullets", [])[:3],
+                "teacher_script": s.get("teacher_script")
             }
             for s in plan.get("slides", [])
         ]
-        generate_styled_pptx(formatted_slides, pptx_path, grade, subject, png_paths,language=language)
+        generate_styled_pptx(
+            slides_data=formatted_slides,
+            output_path=pptx_path,
+            grade=grade,
+            subject=subject,
+            image_paths=png_paths,
+            language=language
+        )
         execution_result["response_text"] = "Presentation generated successfully."
         execution_result["files"] = {"pptx": pptx_path}
 
     elif intent == "quiz":
         pdf_path = f"data/exports/DraftBench_G{grade}_{subject}_{language.capitalize()}_Quiz.pdf"
-        generate_styled_pdf(master_text, pdf_path, png_paths, intent="quiz", language=language, grade=grade, subject=subject)
+        generate_styled_pdf(
+            master_text, pdf_path, png_paths, intent="quiz", language=language, grade=grade, subject=subject
+        )
         execution_result["response_text"] = "Quiz assessment sheet compiled successfully."
         execution_result["files"] = {"pdf": pdf_path}
 
     else:  # Document
         pdf_path = f"data/exports/DraftBench_G{grade}_{subject}_{language.capitalize()}_Report.pdf"
-        generate_styled_pdf(master_text, pdf_path, png_paths, intent="document", language=language, grade=grade, subject=subject)
+        generate_styled_pdf(
+            master_text, pdf_path, png_paths, intent="document", language=language, grade=grade, subject=subject
+        )
         execution_result["response_text"] = "Comprehensive IEP Document compiled successfully."
         execution_result["files"] = {"pdf": pdf_path}
 
