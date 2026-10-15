@@ -64,16 +64,17 @@ def initialize_vector_database():
 
 
 #this function will help for query
-def query_curriculum_rag(user_query, grade_filter=None, subject_filter=None, top_k=3):
-    #  Embed user query
+import ollama
+
+def query_curriculum_rag(user_query: str, grade_filter: int = None, subject_filter: str = None, top_k=3):
+    """Embeds query, applies metadata filters, and returns raw context text."""
     query_embedding = ollama.embed(model="nomic-embed-text", input=user_query)["embeddings"][0]
 
-    #  Build metadata filter dictionary for ChromaDB if provided
     where_conditions = []
     if grade_filter is not None:
-        where_conditions.append({"grade": grade_filter})
+        where_conditions.append({"grade": int(grade_filter)})
     if subject_filter is not None:
-        where_conditions.append({"subject": subject_filter})
+        where_conditions.append({"subject": str(subject_filter)})
 
     if len(where_conditions) == 1:
         where_filter = where_conditions[0]
@@ -82,53 +83,26 @@ def query_curriculum_rag(user_query, grade_filter=None, subject_filter=None, top
     else:
         where_filter = None
 
-   # Perform Vector Similarity Search
     results = collection.query(
         query_embeddings=[query_embedding],
         n_results=top_k,
         where=where_filter
     )
 
-    retrieved_docs = results['documents'][0]
-    retrieved_meta = results['metadatas'][0]
+    if not results.get('documents') or not results['documents'][0]:
+        return "No matching CDC curriculum standards found.", []
 
-    if not retrieved_docs:
-        return "No matching CDC curriculum standards found for the given criteria."
+    retrieved_docs = results['documents'][0]
+    retrieved_meta = results['metadatas'][0] if 'metadatas' in results else [{}] * len(retrieved_docs)
 
     context_builder = []
     for idx, (doc, meta) in enumerate(zip(retrieved_docs, retrieved_meta), 1):
-        context_builder.append(f"Standard {idx} [{meta['subject']} - Grade {meta['grade']}]:\n{doc}")
-    
-    context_block = "\n\n".join(context_builder)
+        subj = meta.get('subject', 'General')
+        grd = meta.get('grade', 'N/A')
+        context_builder.append(f"Standard {idx} [{subj} Grade {grd}]:\n{doc}")
 
-    system_prompt = """You are an expert special education assistant and curriculum planner in Nepal.
-Your task is to help educators design localized Individualized Education Program (IEP) targets and actionable teaching methodologies.
-CRITICAL RULES:
-1. Ground your response strictly in the provided official CDC curriculum standards.
-2. Match the language of the user query (respond in pure Nepali if the query is in Nepali, or professional English if the query is in English).
-3. Provide practical, step-by-step classroom strategies."""
+    return "\n\n".join(context_builder), retrieved_meta
 
-    user_prompt = f"""Official CDC Curriculum Context:
-{context_block}
-
-User Request: {user_query}
-
-Provide a tailored IEP target and practical teaching strategy based strictly on the context above."""
-
-    response = ollama.chat(
-        model="qwen2.5:3b-instruct",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ],
-        options={
-            "temperature": 0.2,
-            "num_ctx": 4096,
-            "num_predict": 1024
-        }
-    )
-
-    return response["message"]["content"]
 
 if __name__ == "__main__":
     # Ensure vector store is populated
