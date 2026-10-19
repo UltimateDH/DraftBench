@@ -4,7 +4,7 @@ import json
 import re
 import ollama
 
-# Ensure project root is in python path
+
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
@@ -271,7 +271,7 @@ CRITICAL:
     if not plan:
         return {"error": "planner_failed"}
 
-    # --- Step 4: Visual PECS SVG/PNG Generation ---
+ 
     print("Step[4]...Generating visual PNG assets...")
     png_paths = []
     if intent in ["presentation", "document", "quiz"]:
@@ -349,7 +349,7 @@ CRITICAL:
         execution_result["response_text"] = "Quiz assessment sheet compiled successfully."
         execution_result["files"] = {"pdf": pdf_path}
 
-    else:  # Document
+    else:  
         pdf_path = f"data/exports/DraftBench_G{grade}_{subject}_{language.capitalize()}_Report.pdf"
         generate_styled_pdf(
             master_text, pdf_path, png_paths, intent="document", language=language, grade=grade, subject=subject
