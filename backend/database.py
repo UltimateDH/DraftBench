@@ -7,7 +7,7 @@ import os
 
 load_dotenv()
 
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL","sqlite:///./data/db/draftbench.db")
 
 if not SQLALCHEMY_DATABASE_URL:
     raise ValueError(

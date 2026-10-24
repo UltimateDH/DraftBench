@@ -260,67 +260,73 @@ def _build_sources(sources: list, L: dict) -> str:
         out += f"_{L['no_sources']}_\n"
     return out
 
-
-def build_lesson_markdown(plan: dict,
-                          subject: str,
-                          grade: int,
-                          language: str = "english",
-                          sources: list | None = None) -> str:
+def build_lesson_markdown(plan: dict, subject: str, grade: int, language: str = "english", sources: list = None) -> str:
     """
-    Flatten a DraftBench plan JSON into an ASD-friendly Markdown document.
-
-    Args:
-        plan:     The dict returned by the planner LLM (Step 3).
-        subject:  Subject name (e.g. "Mathematics").
-        grade:    Grade integer.
-        language: "nepali" | "english". Controls all structural labels.
-        sources:  Optional list of RAG source strings for citation.
-
-    Returns:
-        A single Markdown string. Section order is fixed for predictability.
-
-    Section order (always the same):
-        1.  Header (title + metadata)
-        2.  Visual Schedule
-        3.  Lesson Slides (with inline PNG icons)
-        4.  Present Levels (PLAAFP)
-        5.  IEP Goals (1 or many)
-        6.  Services
-        7.  Accommodations
-        8.  Modifications
-        9.  Prompt Hierarchy
-       10.  Reinforcement Plan
-       11.  Sensory Accommodations
-       12.  Calm-Down Strategy
-       13.  Local Context Used
-       14.  Curriculum Sources
+    Builds structured, predictable, autism-friendly educational content for PDFs and presentations.
+    Organizes material into clear visual blocks: Core Concept, Key Points, Real-World Examples, 
+    and Communication Supports, avoiding cognitive overload.
     """
-    if not isinstance(plan, dict) or not plan:
-        L = get_labels(language)
-        return _h1(L["untitled"]) + f"_{L['no_plan']}_\n"
+    meta = plan.get("lesson_meta", {})
+    title = meta.get("title", "Structured Lesson Plan")
+    slides = plan.get("slides", [])
 
-    L = get_labels(language)
+    md_lines = []
+    
+    # Document Header (Predictable layout)
+    md_lines.append(f"# {title}")
+    md_lines.append(f"**Subject:** {subject} | **Target Grade:** {grade}")
+    md_lines.append("\n--- \n")
+    md_lines.append("### 🧠 Autism-Friendly Learning Framework")
+    md_lines.append("* *Predictable pacing: One core concept per section.*")
+    md_lines.append("* *Literal, concrete language with real-world grounding.*")
+    md_lines.append("\n---\n")
 
-    sections = [
-        _build_header(plan, subject, grade, language, L),
-        _build_visual_schedule(plan, L),
-        _build_slides(plan, L),
-        _build_present_levels(plan, L),
-        _build_iep_goals(plan, L),
-        _build_services(plan, L),
-        _build_list_section(L["accommodations"], plan.get("accommodations") or []),
-        _build_list_section(L["modifications"], plan.get("modifications") or []),
-        _build_prompt_hierarchy(plan, L),
-        _build_reinforcement_plan(plan, L),
-        _build_list_section(L["sensory"], plan.get("sensory_accommodations") or []),
-        _build_calm_down(plan, L),
-        _build_list_section(L["local_context"], plan.get("local_context_used") or []),
-        _build_sources(sources or [], L),
-    ]
+    for idx, slide in enumerate(slides, 1):
+        s_title = slide.get("title", f"Concept {idx}")
+        key_idea = slide.get("key_idea", "").strip()
+        explanation = slide.get("explanation", "").strip()
+        bullets = slide.get("bullets", [])
+        example = slide.get("example", "").strip()
+        comm_support = slide.get("communication_support", "Point, say, or use AAC to respond.")
+        key_terms = slide.get("key_terms", [])
 
-    return "".join(s for s in sections if s)
+        md_lines.append(f"## Step {idx}: {s_title}\n")
+        
+        if key_idea:
+            md_lines.append(f"🎯 **Core Concept:** {key_idea}\n")
+        
+        if explanation:
+            md_lines.append(f"📖 **Explanation:** {explanation}\n")
 
+        if bullets and isinstance(bullets, list):
+            md_lines.append("📌 **Key Takeaways:**")
+            for b in bullets:
+                if str(b).strip():
+                    md_lines.append(f"- {str(b).strip()}")
+            md_lines.append("")
 
+        if example:
+            md_lines.append(f"🌍 **Real-World Example:** {example}\n")
 
+        if comm_support:
+            md_lines.append(f"🗣️ **Communication Support:** {comm_support}\n")
 
+        if key_terms and isinstance(key_terms, list):
+            md_lines.append("📖 **Vocabulary Builder:**")
+            for kt in key_terms:
+                if isinstance(kt, dict):
+                    term = kt.get("term", "").strip()
+                    meaning = kt.get("meaning", "").strip()
+                    if term:
+                        md_lines.append(f"- **{term}:** {meaning}")
+            md_lines.append("")
 
+        md_lines.append("\n---\n")
+
+    # Curriculum Sources Appendix
+    if sources and isinstance(sources, list):
+        md_lines.append("### 📚 Curriculum Reference Standards")
+        for src in sources:
+            md_lines.append(f"- {src}")
+
+    return "\n".join(md_lines)

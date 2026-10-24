@@ -50,8 +50,27 @@ def _sentences(text: str) -> list:
     return [x for x in re.split(r"(?<=[.!?।])\s+", text or "") if x.strip()]
 
 
+def clean_meta_text(text: str) -> str:
+    """Strips meta-instructions, rubric headers, and internal prompt tags so they don't leak onto slides."""
+    if not isinstance(text, str):
+        return text
+    
+    # Remove common meta headers if LLM included them in content
+    patterns = [
+        r"^learning goal[s]?:?\s*",
+        r"^iep goal[s]?:?\s*",
+        r"^cdc outcome:?\s*",
+        r"^prompt instruction:?\s*",
+        r"^teacher script:?\s*"
+    ]
+    cleaned = text.strip()
+    for pattern in patterns:
+        cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE)
+    return cleaned.strip()
+
+
 def normalize_plan(plan: dict) -> dict:
-    """Repair the usual small mistakes in the model's JSON so later steps can rely on its shape."""
+    """Repair small mistakes in model JSON so later steps can rely on its shape."""
     slides = plan.get("slides")
     if not isinstance(slides, list):
         plan["slides"] = []
@@ -60,12 +79,22 @@ def normalize_plan(plan: dict) -> dict:
     for n, s in enumerate(slides, 1):
         if not isinstance(s, dict):
             continue
+        
+        # Clean slide title and key ideas
+        s["title"] = clean_meta_text(s.get("title", ""))
+        s["key_idea"] = clean_meta_text(s.get("key_idea", ""))
+        
         b = s.get("bullets")
         if isinstance(b, str):
             b = _sentences(b)
-        s["bullets"] = [str(x).strip() for x in (b or []) if str(x).strip()]
+        s["bullets"] = [clean_meta_text(str(x)) for x in (b or []) if str(x).strip()]
+        
         terms = s.get("key_terms")
-        s["key_terms"] = [t for t in terms if isinstance(t, dict) and t.get("term")] if isinstance(terms, list) else []
+        s["key_terms"] = [
+            {"term": clean_meta_text(t.get("term", "")), "meaning": clean_meta_text(t.get("meaning", ""))}
+            for t in terms if isinstance(t, dict) and t.get("term")
+        ] if isinstance(terms, list) else []
+        
         sp = s.get("source_page")
         s["source_page"] = int(sp) if (isinstance(sp, (int, float)) and not isinstance(sp, bool)) or (isinstance(sp, str) and sp.strip().isdigit()) else None
         if s.get("slide_type") not in ("intro", "concept", "example", "review"):
@@ -86,7 +115,7 @@ def normalize_plan(plan: dict) -> dict:
 def evaluate_asd_plan(plan: dict, language: str) -> tuple[int, list]:
     """
     Evaluator Agent: reviews the generated plan against the ASD rubric, checks that slides actually
-    teach (not just list keywords), and enforces the language policy (pure Nepali vs English).
+    teach, and enforces the language policy.
     """
     feedback = []
     score = 10
@@ -119,16 +148,14 @@ def evaluate_asd_plan(plan: dict, language: str) -> tuple[int, list]:
             feedback.append(f"Slide {idx} has no explanation. Write 2 to 4 short sentences that explain the idea.")
         elif any(len(sen.split()) > 18 for sen in _sentences(expl)):
             penalty += 1
-            feedback.append(f"Slide {idx} explanation has a sentence over 18 words. Use shorter sentences.")
+            feedback.append(f"Slide {idx} explanation has a sentence over 18 words.")
         score -= min(penalty, 2)
 
-    # Measurable IEP goal validation
     iep = plan.get("iep_goal", {})
     if not iep.get("baseline_probe") or not iep.get("measurable_criteria"):
         score -= 2
         feedback.append("IEP Goal is missing measurable criteria or baseline probe.")
 
-    # Pure Nepali policy enforcement (prohibit Hindi loanwords)
     if language == "nepali":
         raw_str = json.dumps(plan, ensure_ascii=False)
         prohibited = ['और', 'दशक', 'मूल्य ज्ञात करना', 'सैकड़ा', 'ज्ञात कीजिए', 'अंतर']
@@ -193,17 +220,14 @@ def enrich_slides_with_accessibility(plan: dict, language: str, say_func=None) -
         say(f"Generating Braille and NSL gestures ({i} of {total})...")
         print(f"  [Accessibility] Processing Slide {i}/{total}...")
 
-        # 1. Generate Braille patterns for Title, Key Idea, and Bullets
         slide["braille_text"] = {
             "title_braille": return_braille(slide.get("title", "")),
             "key_idea_braille": return_braille(slide.get("key_idea", "")),
             "bullets_braille": [return_braille(b) for b in slide.get("bullets", [])]
         }
 
-        # 2. Extract key concepts and build NSL Gesture Descriptions
         combined_text = f"{slide.get('title', '')}. {slide.get('key_idea', '')}. {' '.join(slide.get('bullets', []))}"
         nsl_items = get_nsl_gesture_description_for_single_textblock(combined_text, language=language)
-        
         slide["nsl_gestures"] = nsl_items
 
     return plan
@@ -222,7 +246,6 @@ def run_unified_pipeline(
     on_progress=None,
 ) -> dict:
     """Executes the complete DraftBench pipeline with self-correction and multi-format exporting."""
-    # --- Step 1: Intent Classification & Session State Synchronization ---
     say = on_progress or (lambda msg: None)
     say("Understanding your request...")
     print("Step[1]...Resolving settings & session state...")
@@ -305,7 +328,7 @@ def run_unified_pipeline(
         if evaluator_feedback:
             feedback_str = (
                 "\nCRITICAL CORRECTIONS REQUIRED FROM EVALUATOR:\n"
-                + "\n".join(f"- {item}" for item in evaluator_feedback)
+                + "".join(f"- {item}\n" for item in evaluator_feedback)
                 + "\n"
             )
 
@@ -320,17 +343,16 @@ TEACHER REQUEST: {user_prompt}
 {material_block}TOPIC: {topic} | GRADE: {grade} | SUBJECT: {subject}
 {feedback_str}
 DESIGN RULES (evidence-based ASD practices):
-1. LITERAL LANGUAGE ONLY — no idioms, metaphors, or sarcasm. Every sentence <= 15 words. Never write a bullet that is a single word or half a sentence.
+1. LITERAL LANGUAGE ONLY — no idioms, metaphors, or sarcasm. Every sentence <= 15 words.
 2. ONE CONCEPT PER SLIDE — maximum 3 bullets per slide. Each bullet is a complete phrase of 4 to 12 words.
-3. VISUAL-FIRST — every abstract concept gets a simple, literal icon description.
-4. SENSORY SAFETY — flag any potential trigger (loud video, bright colors, strong smell).
-5. PREDICTABILITY — include a visual schedule using First / Then / Last / Done.
-6. COMMUNICATION ACCESS — for each slide, state how the student can respond (point, gesture, say, use AAC).
-7. STRENGTHS-BASED — connect content to concrete everyday interests.
-8. LOCAL CONTEXT — use Nepali examples (rupees, festivals, native plants) at least twice.
-9. MEASURABLE IEP GOAL — must include a number (%, trials, or time) and a baseline probe.
-10. EXPLAIN PROPERLY — every slide teaches. Give a key_idea (one sentence), an explanation (2 to 4 short sentences that really explain the idea) and one concrete example. When TEACHER'S UPLOADED MATERIAL is provided, take the facts, terms and examples from it, in your own simple words.
-11. SOURCE PAGE — when the uploaded material has [Page N] markers, set source_page to the page the slide is based on, otherwise null.
+3. CLEAN CONTENT ONLY — NEVER output prompt meta-instructions, rubric instructions, or IEP goal headers as slide text or body text. Use IEP goals purely as background context to formulate the educational content.
+4. VISUAL-FIRST — the 'visual_desc' must describe a specific, literal diagram or object model (e.g., 'nucleus with surrounding electrons', 'gold foil experiment deflection'). Never write vague titles like 'diagram of experiment'.
+5. SENSORY SAFETY — flag any potential trigger.
+6. PREDICTABILITY — include a visual schedule using First / Then / Last / Done.
+7. COMMUNICATION ACCESS — for each slide, state how the student can respond.
+8. STRENGTHS-BASED — connect content to concrete everyday interests.
+9. LOCAL CONTEXT — use Nepali examples (rupees, festivals, native plants) at least twice.
+10. MEASURABLE IEP GOAL — must include a number (%, trials, or time) and a baseline probe in the JSON 'iep_goal' section.
 
 Return STRICT JSON in this exact schema:
 {{
@@ -349,14 +371,14 @@ Return STRICT JSON in this exact schema:
     {{
       "slide_number": 1,
       "slide_type": "intro | concept | example | review",
-      "title": "short literal title",
-      "key_idea": "one sentence that states the main idea",
+      "title": "clean lesson topic title",
+      "key_idea": "one sentence that states the main idea cleanly",
       "bullets": ["3 key points", "each a full phrase of 4 to 12 words", "never a single word"],
       "explanation": "2 to 4 short sentences that explain the idea simply",
       "example": "one concrete everyday example",
       "key_terms": [{{"term": "important word", "meaning": "simple meaning"}}],
       "source_page": 1,
-      "visual_desc": "what picture would help show this idea",
+      "visual_desc": "SPECIFIC object/diagram description for the SVG generator",
       "sensory_note": "any sensory consideration or null",
       "communication_support": "how student responds (point / say / gesture / AAC)",
       "teacher_script": "exact short literal words the teacher can say"
@@ -383,9 +405,8 @@ Return STRICT JSON in this exact schema:
 }}
 
 CRITICAL:
-- Produce 5 to 7 slides: 1 intro slide (what we will learn), 3 to 4 concept slides, 1 example or practice slide, and 1 review slide (slide_type "review").
-- Output ONLY valid JSON. No markdown fences, no commentary.
-- If a field cannot be filled, use null — never invent facts."""
+- Produce 5 to 7 slides: 1 intro slide, 3 to 4 concept slides, 1 example/practice slide, 1 review slide.
+- Output ONLY valid JSON. No markdown fences, no commentary."""
 
         response = ollama.chat(
             model="qwen2.5:7b-instruct",
@@ -418,9 +439,17 @@ CRITICAL:
     if not plan:
         return {"error": "planner_failed"}
 
-    # --- Step 3b: Enrich Slides with Braille & NSL Gestures ---
-    print("Step[3b]...Enriching slides with Braille & NSL Gestures...")
-    plan = enrich_slides_with_accessibility(plan, language=language, say_func=say)
+    # --- Step 3b: Enrich Slides with Accessibility (Only if requested or explicit intent) ---
+    include_accessibility = intent in ["braille", "nsl"] or "braille" in user_prompt.lower() or "sign language" in user_prompt.lower()
+    
+    if include_accessibility:
+        print("Step[3b]...Enriching slides with Braille & NSL Gestures...")
+        plan = enrich_slides_with_accessibility(plan, language=language, say_func=say)
+    else:
+        print("Step[3b]...Skipping Braille & NSL (Standard presentation mode)...")
+        for slide in plan.get("slides", []):
+            slide["braille_text"] = {}
+            slide["nsl_gestures"] = []
 
     # --- Step 3c: Picture Matching ---
     matched = 0
@@ -450,7 +479,9 @@ CRITICAL:
                     filename_prefix=f"G{grade}",
                     grade=grade,
                     lesson_topic=lesson_topic_str,
-                    iep_goal=iep_goal_str
+                    iep_goal=iep_goal_str,
+                    language=language,
+                    include_accessibility=include_accessibility
                 )
                 slide["png_path"] = path
                 if path:
@@ -488,10 +519,12 @@ CRITICAL:
         execution_result["response_text"] = master_text
 
     elif intent in ["presentation", "nsl", "braille"]:
-        # Presentation, NSL, or Braille output format
         file_suffix = "Braille_Presentation" if intent == "braille" else ("NSL_Presentation" if intent == "nsl" else "Presentation")
         pptx_path = os.path.join(EXPORT_DIR, f"DraftBench_G{grade}_{subject.replace(' ', '_')}_{language.capitalize()}_{file_suffix}{file_tag}.pptx")
         
+        # Omit visual schedule from standard presentation headers if not explicitly an accessibility run
+        visual_schedule_data = plan.get("visual_schedule") if include_accessibility else None
+
         formatted_slides = [
             dict(
                 s,
@@ -511,8 +544,8 @@ CRITICAL:
             image_paths=None,
             language=language,
             lesson_title=plan.get("lesson_meta", {}).get("title"),
-            visual_schedule=plan.get("visual_schedule"),
-            cdc_outcome=plan.get("lesson_meta", {}).get("cdc_outcome_ref"),
+            visual_schedule=visual_schedule_data,
+            cdc_outcome=None if not include_accessibility else plan.get("lesson_meta", {}).get("cdc_outcome_ref"),
         )
         execution_result["response_text"] = f"{file_suffix.replace('_', ' ')} generated successfully."
         execution_result["files"] = {"pptx": pptx_path}
