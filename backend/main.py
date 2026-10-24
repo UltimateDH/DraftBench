@@ -11,10 +11,49 @@ from database import engine, Base
 from auth_router import router as auth_router
 from materials_router import router as materials_router
 from chat_router import router as chat_router
+import ollama
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI()
+app = FastAPI(title="DraftBench API")
+REQUIRED_MODELS = [
+    "qwen2.5:7b-instruct",
+    "nomic-embed-text"
+]
+
+def ensure_ollama_models_exist():
+    """Checks if required models are present on Ollama, pulls them if missing."""
+    ollama_host = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
+    print(f"[Ollama Check] Connecting to Ollama at {ollama_host}...")
+    
+    try:
+        # Create an explicit client pointing to the docker bridge host
+        client = ollama.Client(host=ollama_host)
+        
+        # Fetch list of locally available models
+        response = client.list()
+        existing_models = [m.get("model", "") for m in response.get("models", [])]
+        
+        for model in REQUIRED_MODELS:
+            # Check if model exists (accounting for tags like :latest)
+            match_found = any(model in em for em in existing_models)
+            
+            if not match_found:
+                print(f"[Ollama Check] Model '{model}' not found. Initiating auto-pull...")
+                client.pull(model)
+                print(f"[Ollama Check] Successfully pulled '{model}'!")
+            else:
+                print(f"[Ollama Check] Model '{model}' is ready.")
+                
+    except Exception as e:
+        print(f"[Ollama Warning] Could not verify/pull models from Ollama: {e}")
+        print("[Ollama Warning] Ensure your host machine's Ollama app is running!")
+
+@app.on_event("startup")
+def startup_event():
+    """Runs database unzipping and Ollama model checks when the server starts."""
+    ensure_ollama_models_exist()
+
 
 app.add_middleware(
     CORSMiddleware,

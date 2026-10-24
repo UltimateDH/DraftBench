@@ -1,33 +1,57 @@
-import ollama
 import json
 import os
+import zipfile
 import chromadb
+import ollama
 
-json_path=os.path.join(os.path.dirname(__file__),"data/json/") # reminder to myself: add full dir name here later
-chroma_path=os.path.join(os.path.dirname(__file__),"data/chromadb")
+# Base path configurations
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+JSON_PATH = os.path.join(DATA_DIR, "json", "curriculum_data.json")  # Adjust to your exact file name
+CHROMA_PATH = os.path.join(DATA_DIR, "chromadb")
+ZIP_PATH = os.path.join(DATA_DIR, "chromadb.zip")
 
-#initialising the chroma db
-chroma_client=chromadb.PersistentClient(path=chroma_path)
-collection=chroma_client.get_or_create_collection(name="cdc_curriculumn_standards")
+
+def ensure_chroma_unzipped():
+    """Checks if chromadb folder exists; if not, extracts chromadb.zip automatically."""
+    if not os.path.exists(CHROMA_PATH):
+        if os.path.exists(ZIP_PATH):
+            print(f"[RAG Setup] 'chromadb' directory not found. Extracting {ZIP_PATH}...")
+            os.makedirs(DATA_DIR, exist_ok=True)
+            with zipfile.ZipFile(ZIP_PATH, 'r') as zip_ref:
+                zip_ref.extractall(DATA_DIR)
+            print("[RAG Setup] ChromaDB extracted successfully!")
+        else:
+            print(f"[RAG Setup] Warning: Neither {CHROMA_PATH} nor {ZIP_PATH} was found.")
+
+
+# Ensure database is unzipped prior to initializing persistent client
+ensure_chroma_unzipped()
+
+# Initializing ChromaDB
+chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
+collection = chroma_client.get_or_create_collection(name="cdc_curriculumn_standards")
 
 
 def initialize_vector_database():
-    if not os.path.exists(json_path):
-        print(f"{json_path} does not exist!")
-        return
-    with open(json_path,"r",encoding="utf-8") as f:
-        data=json.load(f)
-
-    existing_count=collection.count()
-
-    if existing_count>=len(data):
-        print("Everything in json has been synced to chromadb!")
+    """Syncs JSON records into ChromaDB if the collection is not yet populated."""
+    if not os.path.exists(JSON_PATH):
+        print(f"[RAG] JSON source path '{JSON_PATH}' does not exist! Skipping JSON sync.")
         return
 
-    print(f"Syncing {len(data)} into the chromadb!")
-    documents=[]
-    metadatas=[]
-    ids=[]
+    with open(JSON_PATH, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    existing_count = collection.count()
+
+    if existing_count >= len(data):
+        print(f"[RAG] Vector store fully synced ({existing_count} records).")
+        return
+
+    print(f"[RAG] Syncing {len(data)} items into ChromaDB...")
+    documents = []
+    metadatas = []
+    ids = []
 
     for item in data:
         doc_text = (
@@ -44,14 +68,16 @@ def initialize_vector_database():
         })
         ids.append(str(item["id"]))
 
-    batch_size=100
-    for i in range(0,len(documents),batch_size):
-        batch_documents=documents[i:i+batch_size]
-        batch_metadata=metadatas[i:i+batch_size]
-        batch_ids=ids[i:i+batch_size]
+    batch_size = 100
+    total_batches = (len(documents) + batch_size - 1) // batch_size
 
-        response=ollama.embed(model="nomic-embed-text",input=batch_documents)
-        embeddings=response["embeddings"]
+    for i in range(0, len(documents), batch_size):
+        batch_documents = documents[i:i + batch_size]
+        batch_metadata = metadatas[i:i + batch_size]
+        batch_ids = ids[i:i + batch_size]
+
+        response = ollama.embed(model="nomic-embed-text", input=batch_documents)
+        embeddings = response["embeddings"]
 
         collection.upsert(
             documents=batch_documents,
@@ -59,16 +85,19 @@ def initialize_vector_database():
             metadatas=batch_metadata,
             ids=batch_ids
         )
-        print(f"Processed batch {i // batch_size + 1} / {(len(documents) + batch_size - 1) // batch_size}...")
-    print("Vector database initialization complete!")
+        print(f"Processed batch {i // batch_size + 1} / {total_batches}...")
+
+    print("[RAG] Vector database initialization complete!")
 
 
-#this function will help for query
-import ollama
-
-def query_curriculum_rag(user_query: str, grade_filter: int = None, subject_filter: str = None, top_k=3):
-    """Embeds query, applies metadata filters, and returns raw context text."""
-    query_embedding = ollama.embed(model="nomic-embed-text", input=user_query)["embeddings"][0]
+def query_curriculum_rag(user_query: str, grade_filter: int = None, subject_filter: str = None, top_k: int = 3):
+    """Embeds user query, applies metadata filters, and retrieves context text."""
+    try:
+        response = ollama.embed(model="nomic-embed-text", input=user_query)
+        query_embedding = response["embeddings"][0]
+    except Exception as e:
+        print(f"[RAG Warning] Ollama embedding call failed: {e}")
+        return "CDC Curriculum Standards unavailable.", []
 
     where_conditions = []
     if grade_filter is not None:
@@ -93,7 +122,7 @@ def query_curriculum_rag(user_query: str, grade_filter: int = None, subject_filt
         return "No matching CDC curriculum standards found.", []
 
     retrieved_docs = results['documents'][0]
-    retrieved_meta = results['metadatas'][0] if 'metadatas' in results else [{}] * len(retrieved_docs)
+    retrieved_meta = results['metadatas'][0] if 'metadatas' in results and results['metadatas'] else [{}] * len(retrieved_docs)
 
     context_builder = []
     for idx, (doc, meta) in enumerate(zip(retrieved_docs, retrieved_meta), 1):
@@ -105,7 +134,4 @@ def query_curriculum_rag(user_query: str, grade_filter: int = None, subject_filt
 
 
 if __name__ == "__main__":
-    # Ensure vector store is populated
     initialize_vector_database()
-
-  
