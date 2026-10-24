@@ -2,117 +2,80 @@ import os
 import re
 import uuid
 import cairosvg
-from agents.accessibility_tools import return_braille, get_nsl_gesture_description_for_single_word
+import ollama
 
 IMAGE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "exports", "images")
 
-def generate_educational_svg(vdescription: str, filename_prefix: str, grade: int, lesson_topic: str = "", iep_goal: str = "", language: str = "english") -> str:
+def generate_educational_svg(
+    vdescription: str,
+    filename_prefix: str,
+    grade: int,
+    lesson_topic: str = "",
+    iep_goal: str = "",
+    language: str = "english",
+    include_accessibility: bool = False
+) -> str:
     """
-    Generates a professional PECS visual card using 100% native SVG text elements 
-    (fully compatible with CairoSVG) for icons, Braille, and NSL gestures.
+    Uses local Ollama (qwen2.5:7b-instruct) to generate clean vector illustration SVGs
+    focusing on geometric shapes and visual diagrams, avoiding text hallucinations.
     """
     os.makedirs(IMAGE_DIR, exist_ok=True)
-    
+
     clean_desc = re.sub(r'[^a-zA-Z0-9]', '_', vdescription).strip('_').lower()
     base_name = f"{filename_prefix}_{clean_desc[:15]}_{uuid.uuid4().hex[:6]}"
     svg_path = os.path.join(IMAGE_DIR, f"{base_name}.svg")
     png_path = os.path.join(IMAGE_DIR, f"{base_name}.png")
 
-    desc_lower = vdescription.lower()
-    
-    # 1. Fetch Braille & NSL Gesture Text
-    braille_code = return_braille(vdescription)
-    try:
-        nsl_gesture = get_nsl_gesture_description_for_single_word(vdescription, language=language)
-    except Exception:
-        nsl_gesture = f"Sign representation for {vdescription}"
+    system_prompt = """You are an expert SVG diagram illustrator for school educational materials.
+Output ONLY valid raw SVG XML inside an ```xml ... ``` block. No conversational text.
 
-    # Split long NSL text into 3 clean lines for native SVG rendering
-    words = nsl_gesture.split()
-    line1, line2, line3 = "", "", ""
-    for word in words:
-        if len(line1) < 38:
-            line1 += word + " "
-        elif len(line2) < 38:
-            line2 += word + " "
-        else:
-            line3 += word + " "
-    if line3 and len(words) > len((line1 + line2).split()):
-        line3 = line3.strip() + "..."
-
-    # 2. Smart Icon Selector
-    icon_svg = """
-      <circle cx="200" cy="125" r="30" fill="#6C5CE7" opacity="0.15"/>
-      <circle cx="200" cy="125" r="18" fill="#6C5CE7"/>
-      <path d="M192 125 L197 130 L208 118" stroke="#FFFFFF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    """
-    
-    if any(k in desc_lower for k in ["add", "plus", "sum", "math", "count", "number"]):
-        icon_svg = """
-          <rect x="170" y="90" width="60" height="60" rx="8" fill="#E8F0FE" stroke="#4A90E2" stroke-width="2"/>
-          <text x="200" y="132" font-family="Arial" font-size="32" font-weight="bold" fill="#1A73E8" text-anchor="middle">+</text>
-        """
-    elif any(k in desc_lower for k in ["water", "liquid", "drink", "rain"]):
-        icon_svg = """
-          <path d="M200 80 C 200 80 178 110 178 122 C 178 134.15 187.85 144 200 144 C 212.15 144 222 134.15 222 122 C 222 110 200 80 200 80 Z" fill="#0984E3"/>
-        """
-    elif any(k in desc_lower for k in ["plant", "tree", "leaf", "nature", "flower"]):
-        icon_svg = """
-          <circle cx="200" cy="115" r="24" fill="#00B894"/>
-          <rect x="196" y="132" width="8" height="24" fill="#636e72" rx="2"/>
-        """
-
-    # 3. High-Resolution Card Layout using Native SVG Text
-    svg_code = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%">
-  <defs>
-    <style>
-      .card-bg {{ fill: #FFFFFF; stroke: #2D3436; stroke-width: 4; rx: 20px; }}
-      .header-bg {{ fill: #2D3436; }}
-      .title-text {{ font-family: 'Arial', sans-serif; font-size: 16px; font-weight: bold; fill: #FFFFFF; text-anchor: middle; }}
-      .frame-box {{ fill: #F8F9FA; stroke: #DFE6E9; stroke-width: 2; rx: 10px; }}
-      .braille-text {{ font-family: 'Arial', sans-serif; font-size: 20px; fill: #2D3436; text-anchor: middle; letter-spacing: 2px; }}
-      .nsl-box {{ fill: #F0F3FF; stroke: #A29BFE; stroke-width: 1.5; rx: 8px; }}
-      .nsl-title {{ font-family: 'Arial', sans-serif; font-size: 10px; font-weight: bold; fill: #6C5CE7; }}
-      .nsl-text {{ font-family: 'Arial', sans-serif; font-size: 10px; fill: #2D3436; }}
-    </style>
-  </defs>
-
-  <!-- Card Border -->
-  <rect x="10" y="10" width="380" height="380" class="card-bg" />
-
-  <!-- Header Banner -->
-  <rect x="10" y="10" width="380" height="40" class="header-bg" rx="16" />
-  <rect x="10" y="35" width="380" height="15" class="header-bg" />
-  <text x="200" y="35" class="title-text">{vdescription[:32].upper()}</text>
-
-  <!-- Icon Visual Display Area -->
-  <rect x="40" y="58" width="320" height="95" class="frame-box" />
-  {icon_svg}
-
-  <!-- Braille Translation Section -->
-  <text x="200" y="182" class="braille-text">{braille_code}</text>
-  <text x="200" y="195" font-family="Arial" font-size="8" fill="#B2BEC3" text-anchor="middle">BRAILLE PATTERN</text>
-
-  <!-- Nepali Sign Language (NSL) Instruction Box (Using Native SVG Text) -->
-  <rect x="30" y="208" width="340" height="170" class="nsl-box" />
-  <text x="45" y="228" class="nsl-title">🤟 NEPALI SIGN LANGUAGE (NSL) GESTURE:</text>
-  
-  <text x="45" y="250" class="nsl-text"><tspan x="45" dy="0">{line1}</tspan><tspan x="45" dy="16">{line2}</tspan><tspan x="45" dy="16">{line3}</tspan></text>
-
-  <title>{vdescription}</title>
-  <desc>Accessible PECS card with Braille and NSL guidance for {vdescription}</desc>
-</svg>
+STRICT RULES:
+1. CANVAS: Use viewBox="0 0 500 340" with width="100%" height="100%".
+2. CONTAINER: Outer card shape <rect width="500" height="340" rx="14" fill="#FFFFFF" stroke="#1E293B" stroke-width="3"/>
+3. FRAME: Inner canvas area <rect x="25" y="25" width="450" height="260" rx="10" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="2"/>
+4. VECTOR GRAPHICS ONLY: Draw clear visual objects (circles, rectangles, paths, connection lines, arrows) representing the description using vibrant colors (Blue #3B82F6, Red #EF4444, Green #10B981, Amber #F59E0B).
+5. NO LONG TEXT: Do NOT write long paragraphs of text inside the SVG. You may include a single short 2-3 word uppercase label max. Focus entirely on drawing the visual concept clearly.
 """
+
+    user_prompt = f"Topic: {lesson_topic} | Visual Concept to Illustrate: {vdescription}"
+
+    svg_code = ""
+    try:
+        response = ollama.chat(
+            model="qwen2.5:7b-instruct",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            options={"temperature": 0.2, "num_predict": 500}
+        )
+
+        content = response["message"]["content"]
+        match = re.search(r'<svg[\s\S]*?</svg>', content)
+        if match:
+            svg_code = match.group(0)
+    except Exception as e:
+        print(f"[SVG Agent] LLM Error: {e}")
+
+    # Fallback clean vector if LLM fails
+    if not svg_code or "<svg" not in svg_code:
+        svg_code = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 340" width="100%" height="100%">
+          <rect width="500" height="340" rx="14" fill="#FFFFFF" stroke="#1E293B" stroke-width="3"/>
+          <rect x="25" y="25" width="450" height="260" rx="10" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="2"/>
+          <circle cx="250" cy="155" r="50" fill="#3B82F6" opacity="0.2"/>
+          <path d="M225 155 L242 172 L275 138" stroke="#1D4ED8" stroke-width="5" stroke-linecap="round" fill="none"/>
+          <text x="250" y="312" font-family="Arial" font-size="11" fill="#475569" text-anchor="middle" font-weight="bold">DRAFTBENCH VISUAL ASSET</text>
+        </svg>"""
 
     with open(svg_path, "w", encoding="utf-8") as f:
         f.write(svg_code)
 
     png_ok = False
     try:
-        cairosvg.svg2png(url=svg_path, write_to=png_path, output_width=320, output_height=320)
+        cairosvg.svg2png(url=svg_path, write_to=png_path, output_width=600, output_height=408)
         png_ok = True
-    except Exception as e:
-        print(f"[SVG Agent] Warning: SVG to PNG conversion failed: {e}")
+    except Exception as err:
+        print(f"[SVG Agent] CairoSVG conversion error: {err}")
 
     if os.path.exists(svg_path):
         try:
