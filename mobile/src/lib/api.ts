@@ -117,3 +117,38 @@ export async function askChat(token: string, materialIds: number[], message: str
   })) as { reply: string };
   return r.reply;
 }
+
+// ---------- Generate (slides / lesson plan + IEP) ----------
+export type GenerateParams = {
+  prompt: string;
+  output: 'presentation' | 'document';
+  grade: number;
+  subject: string;
+  language: 'nepali' | 'english';
+  material_ids: number[];
+};
+
+export type JobStatus = {
+  status: 'queued' | 'running' | 'done' | 'failed';
+  step: string;
+  error: string | null;
+  filename: string | null;
+};
+
+export async function startGeneration(token: string, p: GenerateParams) {
+  const r = (await request('/generate', {
+    method: 'POST',
+    headers: { ...auth(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(p),
+  })) as { job_id: string };
+  return r.job_id;
+}
+
+export function getJob(token: string, id: string) {
+  return request(`/generate/${id}`, { headers: auth(token) }) as Promise<JobStatus>;
+}
+
+export async function getDownloadUrl(token: string, id: string) {
+  const r = (await request(`/generate/${id}/link`, { headers: auth(token) })) as { path: string };
+  return `${API_URL}${r.path}`;
+}

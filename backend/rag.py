@@ -15,8 +15,11 @@ def initialize_vector_database():
     if not os.path.exists(json_path):
         print(f"{json_path} does not exist!")
         return
-    with open(json_path,"r",encoding="utf-8") as f:
-        data=json.load(f)
+    data=[]
+    for name in sorted(os.listdir(json_path)):  # json_path is a folder: load every .json file in it
+        if name.endswith(".json"):
+            with open(os.path.join(json_path,name),"r",encoding="utf-8") as f:
+                data.extend(json.load(f))
 
     existing_count=collection.count()
 

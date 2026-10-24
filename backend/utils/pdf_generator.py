@@ -12,7 +12,9 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from labels import get_labels
+import re
+from xml.sax.saxutils import escape
+from utils.labels import get_labels
 
 # Font path configured explicitly for utils/assets/fonts/
 FONT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "fonts")
@@ -31,6 +33,21 @@ if os.path.exists(BOLD_FONT_PATH):
 else:
     BOLD_FONT = DEFAULT_FONT
 
+# Lets <b> / <i> tags work with the custom font (otherwise ReportLab raises an error)
+if DEFAULT_FONT != 'Helvetica':
+    pdfmetrics.registerFontFamily(DEFAULT_FONT, normal=DEFAULT_FONT, bold=BOLD_FONT,
+                                  italic=DEFAULT_FONT, boldItalic=BOLD_FONT)
+
+_IMG_RE = re.compile(r"^!\[(.*?)\]\((.+)\)$")
+
+
+def _fmt(text: str) -> str:
+    """Escape XML characters, then turn **bold** and *italic* markdown into ReportLab tags."""
+    t = escape(text)
+    t = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", t)
+    t = re.sub(r"(?<!\w)\*(.+?)\*(?!\w)", r"<i>\1</i>", t)
+    return t
+
 
 def generate_styled_pdf(content: str, output_path: str, image_paths: list = None, intent: str = "document", language: str = "english", grade: int = 7, subject: str = "Mathematics"):
     doc = SimpleDocTemplate(output_path, pagesize=letter, rightMargin=45, leftMargin=45, topMargin=45, bottomMargin=45)
@@ -48,6 +65,7 @@ def generate_styled_pdf(content: str, output_path: str, image_paths: list = None
     sub_style = ParagraphStyle('T2', fontName=DEFAULT_FONT, fontSize=9.5, leading=13, textColor=SECONDARY, spaceAfter=12)
     h2_style = ParagraphStyle('H2', fontName=BOLD_FONT, fontSize=11.5, leading=15, textColor=PRIMARY, spaceBefore=10, spaceAfter=4)
     body_style = ParagraphStyle('B1', fontName=DEFAULT_FONT, fontSize=10, leading=14, textColor=TEXT, spaceAfter=6)
+    h3_style = ParagraphStyle('H3', fontName=BOLD_FONT, fontSize=10.5, leading=14, textColor=SECONDARY, spaceBefore=8, spaceAfter=3)
 
     is_quiz = (intent == "quiz")
 
@@ -78,10 +96,11 @@ def generate_styled_pdf(content: str, output_path: str, image_paths: list = None
         story.append(Spacer(1, 10))
     else:
         story.append(Paragraph("DraftBench — Special Education Resource", title_style))
-        story.append(Paragraph("Curriculum Aligned & Autism Support Framework 🇳🇵", sub_style))
+        story.append(Paragraph("Curriculum Aligned &amp; Autism Support Framework", sub_style))
 
     # Visual PECS/PNG Icons Rendering Block
-    if image_paths:
+    has_inline = any(_IMG_RE.match(x.strip()) for x in content.split('\n'))
+    if image_paths and not has_inline:
         img_elements = []
         for path in image_paths[:3]:
             if path and os.path.exists(path):
@@ -108,19 +127,34 @@ def generate_styled_pdf(content: str, output_path: str, image_paths: list = None
         l = line.strip()
         if not l:
             continue
-        if l.startswith('# '):
-            story.append(Spacer(1, 6))
-            story.append(Paragraph(l.replace('# ', ''), h2_style))
+        m = _IMG_RE.match(l)
+        if m:  # inline slide icon
+            p = m.group(2).strip().strip("<>")
+            if os.path.exists(p):
+                try:
+                    from PIL import Image as PILImage
+                    with PILImage.open(p) as pim:
+                        iw, ih = pim.size
+                    ratio = min(260 / iw, 170 / ih)
+                    story.append(Image(p, width=iw * ratio, height=ih * ratio))
+                    story.append(Spacer(1, 4))
+                except Exception:
+                    pass
+            continue
+        if l.startswith('### '):
+            story.append(Paragraph(_fmt(l[4:]), h3_style))
         elif l.startswith('## '):
             story.append(Spacer(1, 4))
-            story.append(Paragraph(l.replace('## ', ''), h2_style))
+            story.append(Paragraph(_fmt(l[3:]), h2_style))
+        elif l.startswith('# '):
+            story.append(Spacer(1, 6))
+            story.append(Paragraph(_fmt(l[2:]), h2_style))
         elif l.startswith('- '):
-            story.append(Paragraph(f"• {l[2:]}", body_style))
+            story.append(Paragraph(f"• {_fmt(l[2:])}", body_style))
             if is_quiz:
-                # Add spacious blank line for student response space
-                story.append(Spacer(1, 14))
+                story.append(Spacer(1, 14))  # response space for the student
         else:
-            story.append(Paragraph(l, body_style))
+            story.append(Paragraph(_fmt(l), body_style))
 
     def add_footer(canvas, doc):
         canvas.saveState()

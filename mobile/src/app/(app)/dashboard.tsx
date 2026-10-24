@@ -11,7 +11,14 @@ import { useAuth } from '@/context/AuthContext';
 import { API_URL, deleteMaterial, listMaterials, Material, Photo, uploadMaterial } from '@/lib/api';
 import { colors } from '@/lib/theme';
 
-const OUTPUTS = ['Slides', 'Question paper', 'Quiz', 'Lesson plan', 'Summary notes', 'Flashcards'];
+const OUTPUTS: { label: string; output?: 'presentation' | 'document'; hint?: string }[] = [
+  { label: 'Slides', output: 'presentation', hint: 'PowerPoint' },
+  { label: 'Lesson plan & IEP', output: 'document', hint: 'PDF' },
+  { label: 'Question paper' },
+  { label: 'Quiz' },
+  { label: 'Summary notes' },
+  { label: 'Flashcards' },
+];
 
 const formatSize = (b: number) =>
   b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(0)} KB` : `${(b / 1048576).toFixed(1)} MB`;
@@ -77,6 +84,14 @@ export default function Dashboard() {
     } finally {
       setUploading(false);
     }
+  };
+
+  const openGenerate = (output: 'presentation' | 'document') => {
+    const chosen = materials.filter((m) => selected.includes(m.id));
+    router.push({
+      pathname: '/generate',
+      params: { output, ids: chosen.map((m) => m.id).join(','), names: chosen.map((m) => m.filename).join('|') },
+    } as any);
   };
 
   const pickDocuments = async () => {
@@ -153,13 +168,21 @@ export default function Dashboard() {
         </View>
 
         <Text style={s.section}>Create from your material</Text>
+        <Text style={s.hint}>Select files below first to base the result on them, or tap a tile to start from a description.</Text>
         <View style={s.grid}>
-          {OUTPUTS.map((o) => (
-            <View key={o} style={s.tile}>
-              <Text style={s.tileText}>{o}</Text>
-              <Text style={s.soon}>Coming soon</Text>
-            </View>
-          ))}
+          {OUTPUTS.map((o) =>
+            o.output ? (
+              <Pressable key={o.label} onPress={() => openGenerate(o.output!)} style={[s.tile, s.tileLive]}>
+                <Text style={s.tileText}>{o.label}</Text>
+                <Text style={s.live}>{o.hint} • tap to create</Text>
+              </Pressable>
+            ) : (
+              <View key={o.label} style={s.tile}>
+                <Text style={s.tileText}>{o.label}</Text>
+                <Text style={s.soon}>Coming soon</Text>
+              </View>
+            ),
+          )}
         </View>
 
         <Text style={s.section}>Your materials</Text>
@@ -233,6 +256,8 @@ const s = StyleSheet.create({
   tile: { width: '48%', flexGrow: 1, backgroundColor: colors.paper, borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 14 },
   tileText: { fontWeight: '700', color: colors.text, fontSize: 15 },
   soon: { color: colors.muted, fontSize: 12, marginTop: 4 },
+  tileLive: { backgroundColor: colors.soft, borderColor: colors.primary },
+  live: { color: colors.primary, fontSize: 12, fontWeight: '600', marginTop: 4 },
 
   empty: { color: colors.muted, lineHeight: 22 },
   item: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.soft },
