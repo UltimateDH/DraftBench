@@ -2,14 +2,14 @@ import os
 import re
 import uuid
 import cairosvg
+from agents.accessibility_tools import return_braille, get_nsl_gesture_description_for_single_word
 
 IMAGE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "exports", "images")
 
-def generate_educational_svg(vdescription: str, filename_prefix: str, grade: int, lesson_topic: str = "", iep_goal: str = "") -> str:
+def generate_educational_svg(vdescription: str, filename_prefix: str, grade: int, lesson_topic: str = "", iep_goal: str = "", language: str = "english") -> str:
     """
-    Deterministically generates a clean, high-contrast, professional PECS-style 
-    educational visual card in SVG and converts it to PNG via CairoSVG.
-    Completely eliminates broken LLM-generated XML/empty squares.
+    Generates a professional PECS visual card using 100% native SVG text elements 
+    (fully compatible with CairoSVG) for icons, Braille, and NSL gestures.
     """
     os.makedirs(IMAGE_DIR, exist_ok=True)
     
@@ -20,69 +20,87 @@ def generate_educational_svg(vdescription: str, filename_prefix: str, grade: int
 
     desc_lower = vdescription.lower()
     
-    # Smart Icon Selector based on concept keywords
+    # 1. Fetch Braille & NSL Gesture Text
+    braille_code = return_braille(vdescription)
+    try:
+        nsl_gesture = get_nsl_gesture_description_for_single_word(vdescription, language=language)
+    except Exception:
+        nsl_gesture = f"Sign representation for {vdescription}"
+
+    # Split long NSL text into 3 clean lines for native SVG rendering
+    words = nsl_gesture.split()
+    line1, line2, line3 = "", "", ""
+    for word in words:
+        if len(line1) < 38:
+            line1 += word + " "
+        elif len(line2) < 38:
+            line2 += word + " "
+        else:
+            line3 += word + " "
+    if line3 and len(words) > len((line1 + line2).split()):
+        line3 = line3.strip() + "..."
+
+    # 2. Smart Icon Selector
     icon_svg = """
-      <!-- Default Educational Icon Symbol -->
-      <circle cx="200" cy="140" r="45" fill="#6C5CE7" opacity="0.15"/>
-      <circle cx="200" cy="140" r="30" fill="#6C5CE7"/>
-      <path d="M185 140 L195 150 L215 130" stroke="#FFFFFF" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="200" cy="125" r="30" fill="#6C5CE7" opacity="0.15"/>
+      <circle cx="200" cy="125" r="18" fill="#6C5CE7"/>
+      <path d="M192 125 L197 130 L208 118" stroke="#FFFFFF" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
     """
     
     if any(k in desc_lower for k in ["add", "plus", "sum", "math", "count", "number"]):
         icon_svg = """
-          <!-- Math / Count Icon -->
-          <rect x="160" y="100" width="80" height="80" rx="12" fill="#E8F0FE" stroke="#4A90E2" stroke-width="3"/>
-          <text x="200" y="152" font-family="Arial, sans-serif" font-size="42" font-weight="bold" fill="#1A73E8" text-anchor="middle">+</text>
+          <rect x="170" y="90" width="60" height="60" rx="8" fill="#E8F0FE" stroke="#4A90E2" stroke-width="2"/>
+          <text x="200" y="132" font-family="Arial" font-size="32" font-weight="bold" fill="#1A73E8" text-anchor="middle">+</text>
         """
     elif any(k in desc_lower for k in ["water", "liquid", "drink", "rain"]):
         icon_svg = """
-          <!-- Water / Nature Icon -->
-          <path d="M200 95 C 200 95 170 130 170 150 C 170 166.569 183.431 180 200 180 C 216.569 180 230 166.569 230 150 C 230 130 200 95 200 95 Z" fill="#0984E3"/>
+          <path d="M200 80 C 200 80 178 110 178 122 C 178 134.15 187.85 144 200 144 C 212.15 144 222 134.15 222 122 C 222 110 200 80 200 80 Z" fill="#0984E3"/>
         """
     elif any(k in desc_lower for k in ["plant", "tree", "leaf", "nature", "flower"]):
         icon_svg = """
-          <!-- Plant / Nature Icon -->
-          <circle cx="200" cy="130" r="35" fill="#00B894"/>
-          <rect x="193" y="150" width="14" height="35" fill="#636e72" rx="4"/>
-        """
-    elif any(k in desc_lower for k in ["book", "read", "study", "learn", "text"]):
-        icon_svg = """
-          <!-- Book / Reading Icon -->
-          <path d="M165 110 C 180 100 200 110 200 110 C 200 110 220 100 235 110 L 235 170 C 220 160 200 170 200 170 C 200 170 180 160 165 170 Z" fill="#D63031"/>
-          <path d="M200 110 L 200 170" stroke="#FFFFFF" stroke-width="3"/>
+          <circle cx="200" cy="115" r="24" fill="#00B894"/>
+          <rect x="196" y="132" width="8" height="24" fill="#636e72" rx="2"/>
         """
 
-    # Professional PECS Card Template (400x400 High-Res ViewBox)
+    # 3. High-Resolution Card Layout using Native SVG Text
     svg_code = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%">
   <defs>
     <style>
-      .card-bg {{ fill: #FFFFFF; stroke: #2D3436; stroke-width: 5; rx: 24px; }}
+      .card-bg {{ fill: #FFFFFF; stroke: #2D3436; stroke-width: 4; rx: 20px; }}
       .header-bg {{ fill: #2D3436; }}
-      .title-text {{ font-family: 'Arial', sans-serif; font-size: 22px; font-weight: bold; fill: #FFFFFF; text-anchor: middle; }}
-      .sub-text {{ font-family: 'Arial', sans-serif; font-size: 14px; fill: #636E72; text-anchor: middle; }}
-      .frame-box {{ fill: #F8F9FA; stroke: #DFE6E9; stroke-width: 3; rx: 16px; }}
+      .title-text {{ font-family: 'Arial', sans-serif; font-size: 16px; font-weight: bold; fill: #FFFFFF; text-anchor: middle; }}
+      .frame-box {{ fill: #F8F9FA; stroke: #DFE6E9; stroke-width: 2; rx: 10px; }}
+      .braille-text {{ font-family: 'Arial', sans-serif; font-size: 20px; fill: #2D3436; text-anchor: middle; letter-spacing: 2px; }}
+      .nsl-box {{ fill: #F0F3FF; stroke: #A29BFE; stroke-width: 1.5; rx: 8px; }}
+      .nsl-title {{ font-family: 'Arial', sans-serif; font-size: 10px; font-weight: bold; fill: #6C5CE7; }}
+      .nsl-text {{ font-family: 'Arial', sans-serif; font-size: 10px; fill: #2D3436; }}
     </style>
   </defs>
 
-  <!-- Outer PECS Card Background -->
+  <!-- Card Border -->
   <rect x="10" y="10" width="380" height="380" class="card-bg" />
 
-  <!-- Top Header Banner -->
-  <rect x="10" y="10" width="380" height="60" class="header-bg" rx="20" />
-  <rect x="10" y="50" width="380" height="20" class="header-bg" />
-  <text x="200" y="47" class="title-text">Grade {grade} | {lesson_topic[:20] if lesson_topic else "Learning Card"}</text>
+  <!-- Header Banner -->
+  <rect x="10" y="10" width="380" height="40" class="header-bg" rx="16" />
+  <rect x="10" y="35" width="380" height="15" class="header-bg" />
+  <text x="200" y="35" class="title-text">{vdescription[:32].upper()}</text>
 
-  <!-- Central Image / Icon Frame -->
-  <rect x="40" y="85" width="320" height="210" class="frame-box" />
-  
+  <!-- Icon Visual Display Area -->
+  <rect x="40" y="58" width="320" height="95" class="frame-box" />
   {icon_svg}
 
-  <!-- Bottom Label Description -->
-  <text x="200" y="335" font-family="Arial, sans-serif" font-size="18px" font-weight="bold" fill="#2D3436" text-anchor="middle">{vdescription[:35]}</text>
-  <text x="200" y="360" class="sub-text">Special Education Visual Aid</text>
+  <!-- Braille Translation Section -->
+  <text x="200" y="182" class="braille-text">{braille_code}</text>
+  <text x="200" y="195" font-family="Arial" font-size="8" fill="#B2BEC3" text-anchor="middle">BRAILLE PATTERN</text>
+
+  <!-- Nepali Sign Language (NSL) Instruction Box (Using Native SVG Text) -->
+  <rect x="30" y="208" width="340" height="170" class="nsl-box" />
+  <text x="45" y="228" class="nsl-title">🤟 NEPALI SIGN LANGUAGE (NSL) GESTURE:</text>
   
+  <text x="45" y="250" class="nsl-text"><tspan x="45" dy="0">{line1}</tspan><tspan x="45" dy="16">{line2}</tspan><tspan x="45" dy="16">{line3}</tspan></text>
+
   <title>{vdescription}</title>
-  <desc>Visual PECS card for Grade {grade} representing {vdescription}</desc>
+  <desc>Accessible PECS card with Braille and NSL guidance for {vdescription}</desc>
 </svg>
 """
 
