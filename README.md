@@ -26,3 +26,23 @@ React Frontend (Vite) <---> FastAPI Backend <---> Local LLM (Qwen 2.5)
 qwen2.5:7b-instruct
 nomic-embed-text
 ```
+
+## HOW TO RUN
+
+```
+#first compose the backend
+docker compose up --build
+```
+
+```
+#for expo app
+cd mobile
+```
+
+```
+npm install
+```
+
+```
+npx expo start -c
+```
