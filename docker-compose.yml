@@ -1,17 +1,31 @@
-version: '3.8'
-
 services:
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: draftbench_backend
-    ports:
-      - "8000:8000"
-    environment:
-      - OLLAMA_HOST=http://host.docker.internal:11434
-    volumes:
-      - ./backend/data:/app/data
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    restart: unless-stopped
+      build:
+        context: ./backend
+        dockerfile: Dockerfile
+      container_name: draftbench_backend
+      ports:
+        - "8000:8000"
+      environment:
+        - OLLAMA_HOST=http://host.docker.internal:11434
+      volumes:
+        - ./backend/data:/app/data
+        - ./backend:/app   
+      extra_hosts:
+        - "host.docker.internal:host-gateway"
+      restart: unless-stopped
+
+  frontend:
+      build:
+        context: ./frontend
+        dockerfile: Dockerfile
+      container_name: draftbench_frontend
+      ports:
+        - "8081:8081"
+      environment:
+        - CHOKIDAR_USEPOLLING=true
+      volumes:
+        - ./frontend:/app
+        - /app/node_modules
+      command: ["npx", "expo", "start", "--web", "--host", "lan", "--port", "8081"]
+      restart: unless-stopped
