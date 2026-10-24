@@ -1,0 +1,2 @@
+*.rar filter=lfs diff=lfs merge=lfs -text
+backend/data/chromadb.rar filter=lfs diff=lfs merge=lfs -text

@@ -16,6 +16,9 @@ __pycache__/
 backend/.env 
 */.env
 
-# Local ChromaDB database
+# Ignore the local ChromaDB database directory
 backend/data/chromadb/
-backend/data/chromadb.rar
+
+
+# Allow the archive to be tracked with Git LFS
+!backend/data/chromadb.rar
