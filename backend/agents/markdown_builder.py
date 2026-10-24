@@ -1,5 +1,5 @@
 from typing import Any
-from backend.utils.labels import get_labels
+from utils.labels import get_labels
 import os
 
 
@@ -61,7 +61,7 @@ def _get_slide_png(slide: dict) -> str:
     the path is still returned — a PDF renderer running from a different
     working directory may still resolve it.
     """
-    val = slide.get("png_path")
+    val = slide.get("image_path") or slide.get("png_path")
     if not val or not isinstance(val, str):
         return ""
     return val
@@ -131,6 +131,14 @@ def _build_slides(plan: dict, L: dict) -> str:
         bullets = (s.get("bullets") or [])[:3]
         for b in bullets:
             out += _bullet(b)
+        if s.get("explanation"):
+            out += f"\n{s['explanation']}\n"
+        if s.get("example"):
+            out += f"\n**{L.get('example', 'Example')}:** {s['example']}\n"
+        terms = [t for t in (s.get("key_terms") or []) if isinstance(t, dict) and t.get("term")]
+        if terms:
+            out += f"\n**{L.get('key_terms', 'Key words')}:** " + "; ".join(
+                f"{t['term']}: {t.get('meaning', '')}" for t in terms) + "\n"
 
         # --- Optional inline notes ---
         if s.get("teacher_script"):

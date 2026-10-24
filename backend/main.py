@@ -1,7 +1,6 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-
 import os
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -11,7 +10,11 @@ from database import engine, Base
 from auth_router import router as auth_router
 from materials_router import router as materials_router
 from chat_router import router as chat_router
+
 import ollama
+
+from generate_router import router as generate_router
+
 
 Base.metadata.create_all(bind=engine)
 
@@ -66,6 +69,7 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 app.include_router(materials_router, prefix="/materials", tags=["materials"])
 app.include_router(chat_router, prefix="/chat", tags=["chat"])
+app.include_router(generate_router, prefix="/generate", tags=["generate"])
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 

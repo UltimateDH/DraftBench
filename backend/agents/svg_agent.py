@@ -1,7 +1,9 @@
 import os
 import re
+import uuid
 import ollama
-import cairosvg
+
+IMAGE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "exports", "images")
 
 def generate_educational_svg(vdescription: str, filename_prefix: str, grade: int, lesson_topic: str = "", iep_goal: str = ""):
     prompt = f"""You are an SVG XML coder producing special-education visual aids in the style of PECS / Boardmaker picture symbols.
@@ -16,7 +18,7 @@ def generate_educational_svg(vdescription: str, filename_prefix: str, grade: int
     1. Output ONLY valid SVG XML. Start with <svg and end with </svg>.
     2. Do NOT wrap in markdown code fences. No ``` blocks.
     3. No comments, no explanation before or after the SVG.
-    4. Root must include xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" and viewBox="0 0 100 100".
+    4. Root must include xmlns="http://www.w3.org/2000/svg" and viewBox="0 0 100 100".
 
     SPECIAL-EDUCATION DESIGN RULES (ASD / PECS style):
     1. LITERAL — depict exactly the object or action. No symbols, no abstraction, no metaphors.
@@ -55,7 +57,7 @@ def generate_educational_svg(vdescription: str, filename_prefix: str, grade: int
     
     if not match:
         svg_code = (
-            '<svg xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" viewBox="0 0 100 100">'
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
             '<title>Icon unavailable</title>'
             '<desc>Visual could not be generated.</desc>'
             '<rect x="10" y="10" width="80" height="80" fill="none" stroke="#000" stroke-width="3"/>'
@@ -64,17 +66,20 @@ def generate_educational_svg(vdescription: str, filename_prefix: str, grade: int
     else:
         svg_code = match.group(0)
 
-    os.makedirs("data/exports/images", exist_ok=True)
+    os.makedirs(IMAGE_DIR, exist_ok=True)
     clean_desc = re.sub(r'[^a-zA-Z0-9]', '_', vdescription)[:20].lower()
-    base_name = f"{filename_prefix}_{clean_desc}"
-    svg_path = os.path.join("data/exports/images", f"{base_name}.svg")
-    png_path = os.path.join("data/exports/images", f"{base_name}.png")
+    base_name = f"{filename_prefix}_{clean_desc}_{uuid.uuid4().hex[:6]}"
+    svg_path = os.path.join(IMAGE_DIR, f"{base_name}.svg")
+    png_path = os.path.join(IMAGE_DIR, f"{base_name}.png")
 
     with open(svg_path, "w", encoding="utf-8") as f:
         f.write(svg_code)
 
+    png_ok = False
     try:
+        import cairosvg  # needs the Cairo library; icons are skipped if it is missing
         cairosvg.svg2png(url=svg_path, write_to=png_path, output_width=160, output_height=160)
+        png_ok = True
     except Exception as e:
         print(f"[SVG Agent] Warning: SVG to PNG conversion failed: {e}")
 
@@ -85,4 +90,4 @@ def generate_educational_svg(vdescription: str, filename_prefix: str, grade: int
         except Exception:
             pass
 
-    return png_path
+    return png_path if png_ok else None

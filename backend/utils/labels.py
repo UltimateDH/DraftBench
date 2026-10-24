@@ -48,7 +48,18 @@ LABELS = {
         # --- Accessibility & UDL Supports ---
         "accessibility_supports": "Accessibility & Tactile Supports",
         "nsl_cue":               "Nepali Sign Language (NSL) Gesture",
-        "braille_pattern":       "Tactile Braille Card Pattern"
+        "braille_pattern":       "Tactile Braille Card Pattern",
+        # --- Slides (added) ---
+        "example":               "Example",
+        "key_terms":             "Key words",
+        "key_idea":              "Key idea",
+        "from_material":         "From your material",
+        # --- Quiz sheet (added, used by pdf_generator for quizzes) ---
+        "quiz_header":           "Assessment Sheet",
+        "student_name":          "Student Name",
+        "date_label":            "Date",
+        "score_label":           "Score",
+        "quiz_instructions":     "Read each item carefully and answer.",
     },
     "nepali": {
         "visual_schedule":       "दृश्य तालिका",
@@ -99,11 +110,22 @@ LABELS = {
         # --- Accessibility & UDL Supports ---
         "accessibility_supports": "पहुँचयोग्यता तथा स्पर्शीय सहयोग",
         "nsl_cue":               "नेपाली साङ्केतिक भाषा सङ्केत",
-        "braille_pattern":       "ब्रेल लिपि प्याटर्न"
+        "braille_pattern":       "ब्रेल लिपि प्याटर्न",
+        # --- Slides (added) ---
+        "example":               "उदाहरण",
+        "key_terms":             "मुख्य शब्दहरू",
+        "key_idea":              "मुख्य कुरा",
+        "from_material":         "तपाईंको सामग्रीबाट",
+        # --- Quiz sheet (added) ---
+        "quiz_header":           "मूल्याङ्कन पत्र",
+        "student_name":          "विद्यार्थीको नाम",
+        "date_label":            "मिति",
+        "score_label":           "प्राप्ताङ्क",
+        "quiz_instructions":     "प्रत्येक कुरा ध्यान दिएर पढ्नुहोस् र उत्तर दिनुहोस्।",
     },
 }
 
 
 def get_labels(language: str) -> dict:
-    
+
     return LABELS.get((language or "english").lower(), LABELS["english"])
