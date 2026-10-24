@@ -16,6 +16,13 @@ from agents.markdown_builder import build_lesson_markdown
 from utils.pdf_generator import generate_styled_pdf
 from utils.pptx_generator import generate_styled_pptx
 
+# Import Accessibility Tools
+from agents.accessibility_tools import (
+    return_braille,
+    get_nsl_gesture_description_for_single_textblock,
+    get_nsl_gesture_description_for_single_word
+)
+
 # Global in-memory session store for state persistence across turns
 SESSION_STORE = {}
 EXPORT_DIR = os.path.join(PROJECT_ROOT, "data", "exports")
@@ -64,6 +71,13 @@ def normalize_plan(plan: dict) -> dict:
         if s.get("slide_type") not in ("intro", "concept", "example", "review"):
             s["slide_type"] = "concept"
         s["slide_number"] = n
+        
+        # Ensure accessibility fields exist
+        if "braille_text" not in s:
+            s["braille_text"] = {}
+        if "nsl_gestures" not in s or not isinstance(s["nsl_gestures"], list):
+            s["nsl_gestures"] = []
+
         clean.append(s)
     plan["slides"] = clean
     return plan
@@ -131,7 +145,7 @@ def classify_intent_and_extract_params(user_prompt: str) -> dict:
     system_prompt = """You are the Master Intent Classifier for DraftBench.
 Analyze the user prompt and return a strict JSON object with:
 {
-  "intent": "chat" | "presentation" | "document" | "quiz",
+  "intent": "chat" | "presentation" | "document" | "quiz" | "braille" | "nsl",
   "topic": string or null,
   "grade": integer (1 to 12, default 7 if unspecified),
   "subject": string (e.g. "Mathematics", "Science", "English", "Nepali", "Social Studies"),
@@ -139,6 +153,8 @@ Analyze the user prompt and return a strict JSON object with:
   "needs_autism_adaptations": boolean
 }
 CRITICAL RULES:
+- Set "intent" to "braille" if the user specifically requests Braille translations or Tactile learning materials.
+- Set "intent" to "nsl" if the user specifically requests Nepali Sign Language or Deaf-accessible materials.
 - Set "language" to "nepali" if the prompt is written in Nepali/Devanagari script, otherwise set it to "english".
 - Output ONLY valid JSON.
 """
@@ -167,6 +183,32 @@ CRITICAL RULES:
         }
 
 
+def enrich_slides_with_accessibility(plan: dict, language: str, say_func=None) -> dict:
+    """Enriches each slide in the plan with Braille translations and NSL gesture descriptions."""
+    say = say_func or (lambda msg: None)
+    slides = plan.get("slides", [])
+    total = len(slides)
+
+    for i, slide in enumerate(slides, 1):
+        say(f"Generating Braille and NSL gestures ({i} of {total})...")
+        print(f"  [Accessibility] Processing Slide {i}/{total}...")
+
+        # 1. Generate Braille patterns for Title, Key Idea, and Bullets
+        slide["braille_text"] = {
+            "title_braille": return_braille(slide.get("title", "")),
+            "key_idea_braille": return_braille(slide.get("key_idea", "")),
+            "bullets_braille": [return_braille(b) for b in slide.get("bullets", [])]
+        }
+
+        # 2. Extract key concepts and build NSL Gesture Descriptions
+        combined_text = f"{slide.get('title', '')}. {slide.get('key_idea', '')}. {' '.join(slide.get('bullets', []))}"
+        nsl_items = get_nsl_gesture_description_for_single_textblock(combined_text, language=language)
+        
+        slide["nsl_gestures"] = nsl_items
+
+    return plan
+
+
 def run_unified_pipeline(
     user_prompt: str,
     session_id: str = "default_session",
@@ -185,9 +227,13 @@ def run_unified_pipeline(
     say("Understanding your request...")
     print("Step[1]...Resolving settings & session state...")
     if forced_intent and forced_grade and forced_subject and forced_language:
-        # The app already told us everything: skip the classifier model call.
-        extracted_params = {"intent": forced_intent, "grade": forced_grade, "subject": forced_subject,
-                            "language": forced_language, "topic": None}
+        extracted_params = {
+            "intent": forced_intent,
+            "grade": forced_grade,
+            "subject": forced_subject,
+            "language": forced_language,
+            "topic": None
+        }
     else:
         extracted_params = classify_intent_and_extract_params(user_prompt)
         for key, val in (("intent", forced_intent), ("grade", forced_grade),
@@ -214,12 +260,12 @@ def run_unified_pipeline(
             subject_filter=subject,
             top_k=3
         )
-    except Exception as e:  # RAG is optional: carry on without curriculum context
+    except Exception as e:
         print(f"[Pipeline] RAG unavailable: {e}")
         cdc_context, sources = "No curriculum context available.", []
-    # Turn metadata dicts into readable strings for the document's source list
+
     sources = [
-        f"{m.get('subject', '')} Grade {m.get('grade', '')} - {m.get('topic', '')} ({m.get('source_file', '')})"
+        f"{m.get('subject', '')} Grade {m.get('grade', '')} {m.get('topic', '')} ({m.get('source_file', '')})"
         if isinstance(m, dict) else str(m)
         for m in sources
     ]
@@ -372,7 +418,11 @@ CRITICAL:
     if not plan:
         return {"error": "planner_failed"}
 
-    # --- Step 3b: pictures taken from the teacher's own files ---
+    # --- Step 3b: Enrich Slides with Braille & NSL Gestures ---
+    print("Step[3b]...Enriching slides with Braille & NSL Gestures...")
+    plan = enrich_slides_with_accessibility(plan, language=language, say_func=say)
+
+    # --- Step 3c: Picture Matching ---
     matched = 0
     if material_images:
         say("Choosing pictures from your files...")
@@ -386,11 +436,11 @@ CRITICAL:
     # --- Step 4: Visual PECS SVG/PNG Generation ---
     print("Step[4]...Generating visual PNG assets...")
     png_paths = []
-    if intent in ["presentation", "document", "quiz"]:
+    if intent in ["presentation", "document", "quiz", "braille", "nsl"]:
         lesson_topic_str = plan.get("lesson_meta", {}).get("title", topic)
         iep_goal_str = plan.get("iep_goal", {}).get("goal_statement_english", "")
         for n, slide in enumerate(plan.get("slides", []), 1):
-            if slide.get("image_path"):  # a real picture from the teacher's files is better than a drawn icon
+            if slide.get("image_path"):
                 continue
             say(f"Drawing picture symbols ({n} of {len(plan.get('slides', []))})...")
             visual_desc = slide.get("visual_desc") or f"{subject} concept icon"
@@ -437,12 +487,22 @@ CRITICAL:
     if intent == "chat":
         execution_result["response_text"] = master_text
 
-    elif intent == "presentation":
-        pptx_path = os.path.join(EXPORT_DIR, f"DraftBench_G{grade}_{subject.replace(' ', '_')}_{language.capitalize()}_Presentation{file_tag}.pptx")
+    elif intent in ["presentation", "nsl", "braille"]:
+        # Presentation, NSL, or Braille output format
+        file_suffix = "Braille_Presentation" if intent == "braille" else ("NSL_Presentation" if intent == "nsl" else "Presentation")
+        pptx_path = os.path.join(EXPORT_DIR, f"DraftBench_G{grade}_{subject.replace(' ', '_')}_{language.capitalize()}_{file_suffix}{file_tag}.pptx")
+        
         formatted_slides = [
-            dict(s, bullets=(s.get("bullets") or [])[:3], icon_path=s.get("png_path"))
+            dict(
+                s,
+                bullets=(s.get("bullets") or [])[:3],
+                icon_path=s.get("png_path"),
+                braille_text=s.get("braille_text", {}),
+                nsl_gestures=s.get("nsl_gestures", [])
+            )
             for s in plan.get("slides", [])
         ]
+        
         generate_styled_pptx(
             slides_data=formatted_slides,
             output_path=pptx_path,
@@ -454,7 +514,7 @@ CRITICAL:
             visual_schedule=plan.get("visual_schedule"),
             cdc_outcome=plan.get("lesson_meta", {}).get("cdc_outcome_ref"),
         )
-        execution_result["response_text"] = "Presentation generated successfully."
+        execution_result["response_text"] = f"{file_suffix.replace('_', ' ')} generated successfully."
         execution_result["files"] = {"pptx": pptx_path}
 
     elif intent == "quiz":
