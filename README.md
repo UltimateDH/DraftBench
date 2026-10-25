@@ -103,7 +103,7 @@ DraftBench runs a complete AI pipeline on a school laptop. The teacher writes wh
 | **Braille Output** | Transcribes content into Braille-ready output for embossing or tactile review. |
 | **NSL Gesture Vectors** | Produces directional vector diagrams for Nepali Sign Language movements. |
 | **Multi-Format Export** | PDF (ReportLab), PPTX (python-pptx), Braille, NSL vectors, and quiz sheets. |
-| **Cross-Platform Client** | One React Native (Expo) codebase for Android phones and tablets (and iOS where available) for classroom use. |
+| **Cross-Platform Client** | One React Native (Expo) codebase for Android phones and tablets (and iOS where available), also served as a web app at port `8081` by Docker so any browser on the classroom network can use it. |
 | **Authentication** | Local JWT-based auth for teacher accounts, with no external identity provider. |
 
 ---
@@ -129,7 +129,7 @@ Without the models there is nothing to route, retrieve, plan, or draw, and the r
 
 | Layer | Technology |
 |---|---|
-| **Frontend** | React Native (Expo), cross-platform mobile and tablet client for offline classroom deployment |
+| **Frontend** | React Native (Expo), cross-platform mobile and tablet client for offline classroom deployment; served as an Expo web app on port `8081` in Docker |
 | **Backend** | FastAPI served by Uvicorn |
 | **LLM Engine** | Local [Ollama](https://ollama.com) running `qwen2.5:7b-instruct` |
 | **Embeddings** | `nomic-embed-text` (via Ollama) |
@@ -359,17 +359,22 @@ ollama pull nomic-embed-text
 
 Edit `backend/.env` (see [Configuration](#configuration)).
 
-### 4. Run the Backend with Docker (Recommended)
+### 4. Run the Full App with Docker (Recommended)
 
 ```bash
 docker compose up --build
 ```
 
-This also starts the Expo web frontend on port `8081`. The API is then available at:
+One command starts both containers: the **FastAPI backend** and the **React Native (Expo) frontend served as a web app**.
 
-- API root: `http://localhost:8000`
-- Interactive docs (Swagger UI): `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
+| Service | URL |
+|---|---|
+| **Web app (Expo web frontend)** | `http://localhost:8081` |
+| API root | `http://localhost:8000` |
+| Interactive docs (Swagger UI) | `http://localhost:8000/docs` |
+| ReDoc | `http://localhost:8000/redoc` |
+
+Open `http://localhost:8081` in a browser to use DraftBench. Tablets and phones on the same local network can open `http://<laptop-LAN-IP>:8081` in their browser, with no app install needed.
 
 ### 5. Run the Backend Without Docker (Alternative)
 
@@ -393,7 +398,9 @@ python rag.py              # embeds the records with nomic-embed-text into Chrom
 
 If a pre-built `backend/data/chromadb.zip` is present, it is extracted automatically on startup.
 
-### 7. Run the Expo Frontend
+### 7. (Optional) Run the Expo Frontend Natively
+
+The Docker setup in step 4 already serves the frontend as a web app on port `8081`. Use this step only if you want the native mobile build or an emulator instead of the browser:
 
 ```bash
 cd frontend
@@ -438,7 +445,7 @@ The rubric pass mark (8 out of 10) and the retry limits (3 content passes, 2 tea
 
 ## Working Demo
 
-DraftBench is air-gapped by design, so the working demo is the app running **locally on the presenter's laptop and tablet** rather than a public hosted URL. Anyone can reproduce it from this repository in a few commands.
+DraftBench is air-gapped by design, so the working demo is the app running **locally on the presenter's laptop**, opened as a web app in the browser, rather than a public hosted URL. Docker runs both the backend and the Expo web frontend, so anyone can reproduce the demo from this repository with a few commands.
 
 ### Reproduce the Demo
 
@@ -446,9 +453,16 @@ DraftBench is air-gapped by design, so the working demo is the app running **loc
 git clone https://github.com/UltimateDH/DraftBench.git
 cd DraftBench
 ollama pull qwen2.5:7b-instruct && ollama pull nomic-embed-text
-docker compose up --build            # backend at http://localhost:8000/docs
-cd frontend && npm install && npx expo start
+docker compose up --build
 ```
+
+Then open:
+
+| What | URL |
+|---|---|
+| **Demo app (Expo web frontend)** | `http://localhost:8081` |
+| Backend API docs | `http://localhost:8000/docs` |
+| Demo on a tablet or phone (same local Wi-Fi) | `http://<laptop-LAN-IP>:8081` |
 
 <!-- TODO: add 2-4 screenshots or GIFs here, e.g. ![Observation input](docs/screenshots/observation.png) -->
 
@@ -503,7 +517,7 @@ DraftBench is designed to run on machines that **never touch the internet**. Pre
    pip install --no-index --find-links=wheelhouse -r backend/requirements.txt
    ```
 
-4. **Vendor frontend dependencies**
+4. **Vendor frontend dependencies** (only for running Expo outside Docker; the Docker image already bundles them)
    ```bash
    cd frontend && npm ci
    ```
@@ -516,13 +530,15 @@ DraftBench is designed to run on machines that **never touch the internet**. Pre
 ```text
 ┌──────────────────────┐        Local Wi-Fi / Hotspot        ┌────────────────────┐
 │  Teacher Tablet/     │  <------------------------------>  │  School Laptop     │
-│  Phone (Expo App)    │        (no internet gateway)        │  FastAPI + Ollama  │
-└──────────────────────┘                                     │  ChromaDB + SVG    │
+│  Phone (Browser or   │        (no internet gateway)        │  Expo web  :8081   │
+│  Expo App)           │                                     │  FastAPI   :8000   │
+└──────────────────────┘                                     │  Ollama + ChromaDB │
+                                                             │  + SVG engine      │
                                                              └────────────────────┘
 ```
 
-- The laptop hosts the backend and acts as (or joins) a **local-only** Wi-Fi network or hotspot.
-- Tablets and phones connect to the laptop's LAN IP. No router uplink is needed.
+- The laptop hosts the backend and the Expo web frontend (via Docker) and acts as (or joins) a **local-only** Wi-Fi network or hotspot.
+- Tablets and phones open `http://<laptop-LAN-IP>:8081` in a browser. No router uplink is needed.
 - For distributing the mobile app without an app store, build a standalone **APK** locally (for example via `eas build --local` or `expo prebuild` plus Gradle) while connected, then sideload it onto classroom devices.
 
 ### Air-Gap Guarantees
