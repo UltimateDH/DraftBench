@@ -450,7 +450,7 @@ DraftBench is air-gapped by design, so the working demo is the app running **loc
 ### Reproduce the Demo
 
 ```bash
-git clone https://github.com/UltimateDH/DraftBench.git
+git clone --depth 1 https://github.com/UltimateDH/DraftBench.git
 cd DraftBench
 ollama pull qwen2.5:7b-instruct && ollama pull nomic-embed-text
 docker compose up --build
@@ -474,10 +474,10 @@ Then open:
 
 [![DraftBench Demo Video](https://img.youtube.com/vi/YOUR_VIDEO_ID/maxresdefault.jpg)](https://www.youtube.com/watch?v=YOUR_VIDEO_ID)
 
-| Asset                                               | Link                                                              |
-| --------------------------------------------------- | ----------------------------------------------------------------- |
-| **Demo video** (problem, solution, workflow, value) | [Watch on YouTube](https://www.youtube.com/watch?v=YOUR_VIDEO_ID) |
-| **Presentation slides**                             | [Click on this for Presentation](DraftBench_Slides_demo.pdf)      |
+| Asset                                               | Link                                                            |
+| --------------------------------------------------- | --------------------------------------------------------------- |
+| **Demo video** (problem, solution, workflow, value) | [Watch on YouTube](https://www.youtube.com/watch?v=JI5m0mv-ijM) |
+| **Presentation slides**                             | [Click on this for Presentation](DraftBench_Slides_demo.pdf)    |
 
 ### What the Video and Slides Cover
 
