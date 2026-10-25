@@ -1,272 +1,255 @@
-import os
-import ollama
-import re
+"""Braille (Nepali/Bharati + English Grade 1) and Nepali Sign Language (NSL) helpers.
+
+Braille: pure rules, no AI. Each print character becomes one or more 6-dot cells.
+NSL: a verified glossary (data/nsl_glossary.json) wins; otherwise ONE batched AI call writes
+     *suggested* gesture descriptions, which are always labelled as unverified.
+"""
 import json
+import os
+import re
+from typing import Dict, List, Tuple
 
-#this consists of both english, nepali with words and digits
-BRAILLE_MAP = {
-  
-    'a': '⠁', 'b': '⠃', 'c': '⠉', 'd': '⠙', 'e': '⠑', 'f': '⠋', 'g': '⠛',
-    'h': '⠓', 'i': '⠊', 'j': '⠚', 'k': '⠅', 'l': '⠇', 'm': '⠍', 'n': '⠝',
-    'o': '⠕', 'p': '⠏', 'q': '⠟', 'r': '⠗', 's': '⠎', 't': '⠞', 'u': '⠥',
-    'v': '⠧', 'w': '⠺', 'x': '⠭', 'y': '⠽', 'z': '⠵', ' ': ' ',
-    '1': '⠂', '2': '⠆', '3': '⠒', '4': '⠲', '5': '⠢', '6': '⠖',
-    '7': '⠶', '8': '⠦', '9': '⠔', '0': '⠴',
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+GLOSSARY_PATH = os.path.join(BASE_DIR, "data", "nsl_glossary.json")
+BLANK = "\u2800"  # an empty braille cell
 
 
-    'अ': '⠁', 'आ': '⠜', 'इ': '⠊', 'ई': '⠔', 'उ': '⠥', 'ऊ': '⠳',
-    'ऋ': '⠐⠗', 'ए': '⠌', 'ऐ': '⠮', 'ओ': '⠕', 'औ': '⠪',
+def _cell(*dots: int) -> str:
+    v = 0x2800
+    for d in dots:
+        v |= 1 << (d - 1)
+    return chr(v)
 
-    'क': '⠅', 'ख': '⠨', 'ग': '⠛', 'घ': '⠣', 'ङ': '⠬',
-    'च': '⠉', 'छ': '⠡', 'ज': '⠚', 'झ': '⠴', 'ञ': '⠒',
-    'ट': '⠞', 'ठ': '⠹', 'ड': '⠙', 'ढ': '⠮', 'ण': '⠼',
-    'त': '⠞', 'थ': '⠹', 'द': '⠙', 'ध': '⠮', 'न': '⠝',
-    'प': '⠏', 'फ': '⠋', 'ब': '⠃', 'भ': '⠘', 'म': '⠍',
-    'य': '⠽', 'र': '⠗', 'ल': '⠇', 'व': '⠧',
-    'श': '⠩', 'ष': '⠯', 'स': '⠎', 'ह': '⠓', 'ळ': '⠿',
-    'क्ष': '⠟', 'ज्ञ': '⠟',
 
-    '०': '⠴', '१': '⠂', '२': '⠆', '३': '⠒', '४': '⠲',
-    '५': '⠢', '६': '⠖', '७': '⠶', '८': '⠦', '९': '⠔',
+# ---------------------------------------------------------------- English (Grade 1)
+_LATIN = {
+    "a": (1,), "b": (1, 2), "c": (1, 4), "d": (1, 4, 5), "e": (1, 5), "f": (1, 2, 4), "g": (1, 2, 4, 5),
+    "h": (1, 2, 5), "i": (2, 4), "j": (2, 4, 5), "k": (1, 3), "l": (1, 2, 3), "m": (1, 3, 4),
+    "n": (1, 3, 4, 5), "o": (1, 3, 5), "p": (1, 2, 3, 4), "q": (1, 2, 3, 4, 5), "r": (1, 2, 3, 5),
+    "s": (2, 3, 4), "t": (2, 3, 4, 5), "u": (1, 3, 6), "v": (1, 2, 3, 6), "w": (2, 4, 5, 6),
+    "x": (1, 3, 4, 6), "y": (1, 3, 4, 5, 6), "z": (1, 3, 5, 6),
+}
+LATIN = {k: _cell(*v) for k, v in _LATIN.items()}
+NUMBER_SIGN = _cell(3, 4, 5, 6)
+CAPITAL_SIGN = _cell(6)
+DIGIT_LETTERS = "jabcdefghi"  # 0..9 use the cells of j,a,b,c,d,e,f,g,h,i
+
+PUNCT = {
+    ".": _cell(2, 5, 6), ",": _cell(2), ";": _cell(2, 3), ":": _cell(2, 5), "!": _cell(2, 3, 5),
+    "?": _cell(2, 3, 6), "-": _cell(3, 6), "'": _cell(3), "।": _cell(2, 5, 6),
+    "(": _cell(5) + _cell(1, 2, 6), ")": _cell(5) + _cell(3, 4, 5),
+    '"': _cell(2, 3, 6), "“": _cell(2, 3, 6), "”": _cell(3, 5, 6), "/": _cell(4, 5, 6) + _cell(3, 4),
+    "+": _cell(3, 4, 6), "=": _cell(2, 3, 5, 6), "%": _cell(4, 5, 6) + _cell(3, 5, 6),
 }
 
-#this should return the text in the braille format in the structured format as intented in the text
-def return_braille(text:str)->str:
-    if not text:
-        return ""
-    return "".join(BRAILLE_MAP.get(char.lower(),char) for char in text)
+# ---------------------------------------------------------------- Devanagari (Bharati Braille)
+_CONS = {
+    "क": (1, 3), "ख": (4, 6), "ग": (1, 2, 4, 5), "घ": (1, 2, 6), "ङ": (3, 4, 6),
+    "च": (1, 4), "छ": (1, 6), "ज": (2, 4, 5), "झ": (3, 5, 6), "ञ": (2, 5),
+    "ट": (2, 3, 4, 5, 6), "ठ": (2, 4, 5, 6), "ड": (1, 2, 4, 6), "ढ": (1, 2, 3, 4, 5, 6), "ण": (3, 4, 5, 6),
+    "त": (2, 3, 4, 5), "थ": (1, 4, 5, 6), "द": (1, 4, 5), "ध": (2, 3, 4, 6), "न": (1, 3, 4, 5),
+    "प": (1, 2, 3, 4), "फ": (2, 3, 5), "ब": (1, 2), "भ": (4, 5), "म": (1, 3, 4),
+    "य": (1, 3, 4, 5, 6), "र": (1, 2, 3, 5), "ल": (1, 2, 3), "व": (1, 2, 3, 6),
+    "श": (1, 4, 6), "ष": (1, 2, 3, 4, 6), "स": (2, 3, 4), "ह": (1, 2, 5), "ळ": (4, 5, 6),
+}
+_VOWEL = {  # an independent vowel and its dependent sign share the same cell
+    "आ": (3, 4, 5), "इ": (2, 4), "ई": (3, 5), "उ": (1, 3, 6), "ऊ": (1, 2, 5, 6),
+    "ए": (1, 5), "ऐ": (3, 4), "ओ": (1, 3, 5), "औ": (2, 4, 6),
+}
+_SIGN_TO_VOWEL = {"ा": "आ", "ि": "इ", "ी": "ई", "ु": "उ", "ू": "ऊ", "े": "ए", "ै": "ऐ", "ो": "ओ", "ौ": "औ"}
+RI = _cell(5) + _cell(1, 2, 3, 5)           # ऋ / ृ
+HALANT = _cell(4)
+# These three signs come from the Bharati standard from memory and MUST be checked by a braille reader:
+ANUSVARA, CHANDRABINDU, VISARGA = _cell(5, 6), _cell(3), _cell(6)
+UNVERIFIED_SIGNS = "ंँः"
+
+DEVA = {k: _cell(*v) for k, v in _CONS.items()}
+DEVA.update({k: _cell(*v) for k, v in _VOWEL.items()})
+DEVA["अ"] = _cell(1)
+DEVA["ऋ"] = RI
+DEVA["ृ"] = RI
+for _sign, _vowel in _SIGN_TO_VOWEL.items():
+    DEVA[_sign] = DEVA[_vowel]
+DEVA["्"] = HALANT
+DEVA["ं"], DEVA["ँ"], DEVA["ः"] = ANUSVARA, CHANDRABINDU, VISARGA
 
 
+def translate(text: str) -> Tuple[str, List[str], List[Tuple[str, str]]]:
+    """Convert text to braille.
 
-def get_nsl_gesture_description_for_single_word(concept:str,language:str)->str:
+    Returns (braille_string, unknown_characters, pairs) where pairs is [(print_unit, cells)] for legends.
+    Words are separated by one blank cell. Numbers get a number sign; capitals get a capital sign.
+    """
+    out, unknown, pairs = [], [], []
+    in_number = False
 
-    target_language = (language or "english").lower().strip()
-    prompt=f"""You are an expert Nepali Sign Language (NSL) describer. You write precise, signable
-gesture descriptions in the style of Deaf-community NSL documentation. You are
-pedantic about language purity.
+    def emit(unit: str, cells: str):
+        out.append(cells)
+        pairs.append((unit, cells))
 
-    ## HARD LANGUAGE RULES
+    for ch in (text or "").replace("\u200c", "").replace("\u200d", ""):
+        if ch.isspace():
+            out.append(BLANK)
+            in_number = False
+            continue
 
-    - If TARGET_LANGUAGE is "nepali", every word of your output MUST be Nepali.
-    You must NEVER output Hindi. Hindi is a different language even though it shares
-    the Devanagari script. A single Hindi word invalidates your answer.
-    - If TARGET_LANGUAGE is "english", output only English. Do not include any Devanagari.
-    - Do not mix languages. Do not add parenthetical translations.
+        digit = None
+        if "0" <= ch <= "9":
+            digit = int(ch)
+        elif "\u0966" <= ch <= "\u096f":
+            digit = ord(ch) - 0x0966
+        if digit is not None:
+            cells = LATIN[DIGIT_LETTERS[digit]]
+            if not in_number:
+                cells = NUMBER_SIGN + cells
+                in_number = True
+            emit(ch, cells)
+            continue
+        in_number = False
 
-    ### Hindi words you must NEVER use (replace with the Nepali equivalent)
+        low = ch.lower()
+        if "a" <= low <= "z":
+            emit(ch, (CAPITAL_SIGN if ch.isupper() else "") + LATIN[low])
+        elif ch in DEVA:
+            emit(ch, DEVA[ch])
+        elif ch in PUNCT:
+            emit(ch, PUNCT[ch])
+        elif ch == "\u093c":  # nukta: not mapped, skipped silently
+            continue
+        else:
+            unknown.append(ch)
+    return "".join(out), sorted(set(unknown)), pairs
 
-    है/हैं/हूँ      → use  छ / छन् / छु  (or restructure so no copula is needed)
-    और             → र
-    करना/करें/करता/करती/करते/किया → गर्नु / गर्ने / गर्छ / गरे / गरी / गर्दै
-    यह/वह/ये/वे     → यो / त्यो / यी / ती
-    में             → मा
-    पर (on)        → मा / माथि
-    के लिए         → लागि
-    बहुत           → धेरै
-    अच्छा          → राम्रो
-    नहीं           → छैन
-    क्या/कैसे/क्यों → के / कसरी / किन
-    लेकिन          → तर
-    भी             → पनि
-    साथ            → सँग
-    ओर/तरफ         → तर्फ
-    उंगली          → औंला
-    हथेली          → हत्केला
-    चलाना          → चलाउनु / हल्लाउनु
-    दिखाना         → देखाउनु
-    होता/होती/होते  → हुन्छ / हुने
 
-    ### Positive Nepali signals — your output should be full of these
+def return_braille(text: str, language: str = None) -> str:
+    """Backward compatible helper used by older code: braille string only."""
+    return translate(text)[0]
 
-    Verb endings:  गर्नु, गर्ने, गर्छ, गर्दै, गरी, गरेर, बनाउने, हल्लाउने, छुने,
-                    खोल्ने, जोड्ने, देखाउने, चलाउने, राख्ने, तान्ने, घुमाउने
-    Particles:     र, पनि, तर, मा, बाट, ले, सँग, लागि, तर्फ, सम्म
-    Body parts:    औंला, चोर औंला (index), बुढी औंला (thumb), माझी औंला (middle),
-                    हत्केला, चिउँडो, निधार, छाती, काँध, नाक
-    Quantity:      दुई पटक, क्रमैसँग, दायाँ-बायाँ, माथि-तल, अगाडि-पछाडि
-    Sentence end:  ।  (Nepali danda — required, never ".")
 
-    English loanwords in Devanagari transliteration (क्रस, साइन, 'W' आकार) are
-    ACCEPTABLE and common in Nepali. The ban is on Hindi grammar and Hindi-only words,
-    not on loanwords.
+def legend_entries(texts: List[str], limit: int = 48) -> List[Tuple[str, str]]:
+    """Unique (print character, cells) pairs used in the given texts, in order of first use."""
+    seen, entries = set(), []
+    for t in texts:
+        for unit, cells in translate(t)[2]:
+            if unit not in seen and not unit.isspace():
+                seen.add(unit)
+                entries.append((unit, cells))
+    return entries[:limit]
 
-    ## GESTURE DESCRIPTION FRAMEWORK
 
-    Describe the gesture using these five parameters, in this order, compressed into
-    1–2 natural sentences (do not label the parameters):
+# ---------------------------------------------------------------- NSL
+_HINDI_WORDS = {
+    "है", "हैं", "हूँ", "और", "करना", "करें", "करता", "करती", "करते", "किया", "यह", "वह", "ये", "वे", "में",
+    "पर", "बहुत", "अच्छा", "नहीं", "क्या", "कैसे", "क्यों", "लेकिन", "भी", "साथ", "ओर", "तरफ", "उंगली",
+    "हथेली", "चलाना", "दिखाना", "होता", "होती", "होते", "के", "लिए",
+}
 
-    1. HAND(S)      — one- or two-handed
-    2. HANDSHAPE    — which fingers extended/curled; palm shape
-    3. ORIENTATION  — palm direction (inward, outward, upward, sideways)
-    4. LOCATION     — signing space (neutral space, chest, chin, forehead, cheek)
-    5. MOVEMENT     — path, direction, repetition, manner (tap, circle, open, cross)
 
-    Include a non-manual marker (facial expression) only if it is essential to the sign.
-
-    ## HONESTY RULE
-
-    If the concept has an established NSL sign, describe it directly.
-    If the concept is abstract or has no established NSL sign, describe a natural
-    iconic or metonymic gesture that a Deaf Nepali signer would plausibly use, and
-    begin the description with the word "सङ्केत" (Nepali) or "Suggested" (English)
-    so the reader knows it is an approximation, not a certified dictionary entry.
-
-    ## FEW-SHOT EXAMPLES (match this voice exactly)
-
-    ENGLISH:
-    math  → "Cross the index fingers of both hands to form a plus sign (+),
-            then move them side-to-side."
-    water → "Form a 'W' shape with the fingers and tap the index finger against
-            the side of the chin twice."
-    count → "Tap the thumb sequentially against each fingertip, starting from
-            the index finger."
-
-    NEPALI:
-    math  → "दुवै चोर औंला क्रस गरी जोड चिन्ह (+) बनाउने र दायाँ-बायाँ हल्लाउने।"
-    water → "औंलाले 'W' आकार बनाउने र चोर औंलाले चिउँडोमा दुई पटक छुने।"
-    count → "चोर औंलाबाट सुरु गर्दै क्रमैसँग प्रत्येक औंलाको टुप्पोमा बुढी औंलाले छुने।"
-
-    Notice the Nepali examples use गरी, बनाउने, हल्लाउने, छुने, क्रमैसँग — pure Nepali.
-
-    ## SELF-CHECK BEFORE YOU ANSWER
-
-    Before emitting, silently verify:
-    1. Is every word in the target language? Scan for each Hindi word in the
-        blacklist above. If any appears, rewrite.
-    2. Does the Nepali use a Nepali verb ending (गर्ने/गर्छ/गरी/...), not a Hindi
-        one (करना/करता/किया/है)?
-    3. Does it end with "।" (Nepali) or "." (English)?
-    4. Does it name a handshape AND a movement? A description without movement is
-        incomplete.
-    5. Is it 1–2 sentences? Do not pad.
-
-    Return ONLY the description. No preamble, no labels, no explanation."""
-
-    if concept is None:
-        return ""
-    
+def load_glossary() -> Dict[str, dict]:
+    """Verified NSL entries: {"water": {"en": "...", "ne": "...", "source": "..."}}. Keys are lower-case."""
     try:
-        response = ollama.chat(
-            model="qwen2.5:7b-instruct",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a specialized linguistic translator. Respond strictly with the final gesture description only, without quotes or additional text.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            options={"temperature": 0.1},
-        )
-        content=response["message"]["content"].strip()
-        content = re.sub(r'^["\'`]+|["\'`]+$', "", content).strip()
-        return content
-
-    except Exception as e:
-        print(f"[NSL Tool Error] Failed to generate NSL description: {e}")
-        if target_language == "nepali":
-            return f"साङ्केतिक सङ्केत: '{concept}' अवधारणा व्यक्त गर्ने उपयुक्त हत्केलाको आकृति र इशारा।"
-        return f"NSL Gesture: Standardized handshape and motion describing '{concept}'."
+        with open(GLOSSARY_PATH, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+        return {str(k).strip().lower(): v for k, v in raw.items() if isinstance(v, dict)}
+    except Exception:
+        return {}
 
 
+def _valid_description(text: str, language: str) -> bool:
+    if not text or len(text.split()) < 4:
+        return False
+    has_deva = bool(re.search(r"[\u0900-\u097F]", text))
+    if language == "nepali":
+        if not has_deva:
+            return False
+        tokens = set(re.findall(r"[\u0900-\u097F]+", text))
+        return not (tokens & _HINDI_WORDS)
+    return not has_deva
 
 
-def get_nsl_gesture_description_for_single_textblock(paragraph_text:str,language:str)->list:
-    target_lang=(language or "english").lower().strip()
+def _nsl_prompt(items: List[dict], language: str) -> str:
+    target = "Nepali (Devanagari)" if language == "nepali" else "English"
+    lines = "\n".join(
+        f'{i}. {it.get("term_en") or it["term"]}'
+        + (f' ({it["term"]})' if it.get("term_en") and it["term"] != it.get("term_en") else "")
+        + (f' - {it["meaning"]}' if it.get("meaning") else "")
+        for i, it in enumerate(items, 1)
+    )
+    rules = (
+        "Write ONLY Nepali. Never use Hindi words or Hindi grammar (है, और, करना, में, के लिए, नहीं, बहुत...). "
+        "Use Nepali verb endings such as गर्ने, बनाउने, हल्लाउने, छुने, देखाउने, and end each sentence with '।'."
+        if language == "nepali"
+        else "Write only English. Do not use Devanagari."
+    )
+    return f"""You describe signs for Nepali Sign Language (NSL) for a teacher.
+TARGET LANGUAGE: {target}. {rules}
 
-    extraction_prompt="""You extract signing-friendly concepts from educational text for a
-Nepali Sign Language (NSL) accessibility system.
+For each numbered concept write ONE or TWO sentences that say: which hand(s), the handshape,
+where the hand is (chest, chin, forehead, neutral space), and the movement. No labels, no padding.
+If you do not know an established NSL sign, describe a natural gesture that acts out or draws the idea.
 
-A "signing-friendly concept" is a word or short phrase that falls into one of these:
+Style examples:
+math: Cross the index fingers of both hands to make a plus sign, then move them side to side.
+water: Make a 'W' shape with three fingers and tap the side of the chin twice.
+count: Tap the thumb against each fingertip in turn, starting with the index finger.
 
-  1. CONCRETE OBJECT     — a thing you can point to or draw
-                           (book, water, tree, hand, bicycle, rice, house)
-  2. PHYSICAL ACTION     — a movement you can demonstrate with the hands
-                           (count, open, write, eat, run, climb, wash)
-  3. BODY / NATURE / ANIMAL — a living thing or body part
-                           (eye, ear, leaf, fish, mother, child)
-  4. BASIC SPATIAL / QUANTITY — a relationship that is easy to sign
-                           (above, inside, many, small, first)
+CONCEPTS:
+{lines}
 
-DO NOT extract:
-  - Abstract nouns             (importance, development, freedom, system, process, idea)
-  - Proper nouns / names       (Kathmandu, Ram, Google, Monday)
-  - Numbers, dates, times      (1945, three, Tuesday)
-  - Function words             (the, and, because, is)
-  - Whole sentences or clauses (NOT "students memorize tables")
-
-RULES
-  1. Return 3 to 5 concepts, ordered by how central they are to the paragraph.
-  2. Every concept must appear in, or be directly implied by, the paragraph.
-  3. Prefer the SIMPLEST form: "river" over "flowing river system";
-     "eat" over "consumption of food".
-  4. ALWAYS output concepts in ENGLISH, even if the paragraph is Nepali or mixed.
-     (Downstream NSL lookup uses English keys.)
-  5. If the paragraph is fully abstract and contains fewer than 3 concrete terms,
-     return the concrete supporting terms you can find — "vote" and "leader" from a
-     paragraph about democracy, for instance. Never invent concepts.
-  6. Return ONLY a JSON array of lowercase English strings. No explanation,
-     no markdown fences, no labels.
-
-EXAMPLES
-
-  Paragraph: "Water is essential for life. Plants absorb water through their roots
-              and use sunlight to make food."
-  Output: ["water", "plant", "root", "sunlight"]
-
-  Paragraph: "The multiplication table helps students count quickly. Students
-              memorize tables from 1 to 10."
-  Output: ["count", "table", "student"]
-
-  Paragraph: "Democracy is a system of government where citizens vote for their
-              leaders."
-  Output: ["vote", "leader"]
-  (Note: "democracy" and "system" were rejected as abstract; only the concrete
-   actions and roles were kept.)
-
-  Paragraph: "सूर्य पूर्वबाट उदाउँछ र बिहानको प्रकाशले बालबालिकालाई खुसी बनाउँछ।"
-  Output: ["sun", "light", "child"]
-  (English concepts even though the paragraph is Nepali.)
-
-PARAGRAPH:
-"{paragraph_text}"
-
-JSON output (array of English strings only):
-["concept1", "concept2", ...]"""
+Return ONLY a JSON object that maps each number to its description, for example {{"1": "...", "2": "..."}}."""
 
 
-    try:
-        response = ollama.chat(
-            model="qwen2.5:7b-instruct",
-            messages=[{"role": "user", "content": extraction_prompt}],
-            options={"temperature": 0.0, "format": "json"}
-        )
-        raw = response["message"]["content"]
-        clean_json = re.search(r'\[.*\]', raw, re.DOTALL).group(0)
-        key_concepts = json.loads(clean_json)
-    except Exception as e:
-        print(f"[Accessibility Extractor Warning] Extraction failed, using fallback: {e}")
-        # Fallback: Split paragraph into simple clauses or words
-        key_concepts = [c.strip() for c in paragraph_text.split(".") if c.strip()][:3]
+def nsl_descriptions(terms: List[dict], language: str, say=None) -> List[dict]:
+    """terms: [{term, term_en?, meaning?}]. Returns the same items plus description + status.
 
-    accessibility_items = []
+    status is "verified" (from the glossary), "suggested" (AI draft, needs a signer to confirm) or "missing".
+    """
+    say = say or (lambda m: None)
+    lang = "nepali" if (language or "").lower() == "nepali" else "english"
+    glossary = load_glossary()
+    results, need_ai = [], []
 
-    # Loop through each extracted concept and build structured requests
-    for concept in key_concepts:
-        nsl_desc = get_nsl_gesture_description_for_single_word(concept, language=target_lang)
-        braille_pattern = return_braille(concept)
-        
-        # Prepare structured SVG generation request payload
-        svg_request = {
-            "vdescription": f"Literal PECS icon representing {concept}",
-            "concept_name": concept,
-            "filename_prefix": "PECS_ICON"
-        }
+    for it in terms:
+        row = dict(it, description="", status="missing", source="")
+        keys = [str(it.get("term_en") or "").strip().lower(), str(it.get("term") or "").strip().lower()]
+        hit = next((glossary[k] for k in keys if k and k in glossary), None)
+        if hit:
+            desc = hit.get("ne" if lang == "nepali" else "en") or hit.get("en") or hit.get("ne")
+            if desc:
+                row.update(description=desc, status="verified", source=hit.get("source", ""))
+        results.append(row)
+        if row["status"] != "verified":
+            need_ai.append(row)
 
-        accessibility_items.append({
-            "concept": concept,
-            "nsl_gesture": nsl_desc,
-            "braille": braille_pattern,
-            "svg_request_payload": svg_request
-        })
+    if need_ai:
+        say("Drafting sign descriptions...")
+        try:
+            import ollama
+            resp = ollama.chat(
+                model=os.getenv("OLLAMA_MODEL", "qwen2.5:7b-instruct"),
+                messages=[
+                    {"role": "system", "content": "You output only valid JSON."},
+                    {"role": "user", "content": _nsl_prompt(need_ai, lang)},
+                ],
+                format="json",
+                options={"temperature": 0.1, "num_predict": 900, "num_ctx": 4096},
+            )
+            data = json.loads(re.search(r"\{.*\}", resp["message"]["content"], re.DOTALL).group(0))
+            for i, row in enumerate(need_ai, 1):
+                desc = str(data.get(str(i), "")).strip().strip("\"'")
+                if lang == "nepali" and desc and not desc.endswith("।"):
+                    desc = desc.rstrip(".") + "।"
+                if _valid_description(desc, lang):
+                    row.update(description=desc, status="suggested")
+        except Exception as e:
+            print(f"[NSL] could not draft descriptions: {e}")
+    return results
 
-    return accessibility_items
+
+# ---- kept so older imports do not break ----
+def get_nsl_gesture_description_for_single_word(concept: str, language: str) -> str:
+    return nsl_descriptions([{"term": concept, "term_en": concept}], language)[0]["description"]
+
+
+def get_nsl_gesture_description_for_single_textblock(paragraph_text: str, language: str) -> list:
+    return []

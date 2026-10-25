@@ -8,14 +8,16 @@ import * as ImagePicker from 'expo-image-picker';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
-import { API_URL, deleteMaterial, listMaterials, Material, Photo, uploadMaterial } from '@/lib/api';
+import { API_URL, deleteMaterial, listMaterials, Material, OutputKind, Photo, uploadMaterial } from '@/lib/api';
 import { colors } from '@/lib/theme';
 
-const OUTPUTS: { label: string; output?: 'presentation' | 'document'; hint?: string }[] = [
+const OUTPUTS: { label: string; output?: OutputKind; hint?: string }[] = [
   { label: 'Slides', output: 'presentation', hint: 'PowerPoint' },
   { label: 'Lesson plan & IEP', output: 'document', hint: 'PDF' },
+  { label: 'Quiz', output: 'quiz', hint: 'PDF + answer key' },
+  { label: 'Braille cards', output: 'braille', hint: 'PDF' },
+  { label: 'Sign language cards', output: 'nsl', hint: 'PDF' },
   { label: 'Question paper' },
-  { label: 'Quiz' },
   { label: 'Summary notes' },
   { label: 'Flashcards' },
 ];
@@ -86,7 +88,7 @@ export default function Dashboard() {
     }
   };
 
-  const openGenerate = (output: 'presentation' | 'document') => {
+  const openGenerate = (output: OutputKind) => {
     const chosen = materials.filter((m) => selected.includes(m.id));
     router.push({
       pathname: '/generate',

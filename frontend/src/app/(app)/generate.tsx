@@ -5,7 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 import { ErrorText, PrimaryButton } from '@/components/AuthUI';
-import { getDownloadUrl, getJob, startGeneration } from '@/lib/api';
+import { getDownloadUrl, getJob, OutputKind, startGeneration } from '@/lib/api';
 import { colors } from '@/lib/theme';
 
 // Keep these in sync with the subject names in your curriculum JSON (the RAG filters on them).
@@ -14,20 +14,41 @@ const SUBJECTS = [
   'Social Studies', 'Health', 'Computer Science', 'Economics', 'Accountancy',
 ];
 const GRADES = Array.from({ length: 12 }, (_, i) => i + 1);
+const QUESTION_COUNTS = [5, 8, 10, 15];
+
+const TITLES: Record<OutputKind, string> = {
+  presentation: 'Create slides',
+  document: 'Create lesson plan & IEP',
+  quiz: 'Create a quiz',
+  braille: 'Create braille cards',
+  nsl: 'Create sign language cards',
+};
+const PROMPTS: Record<OutputKind, string> = {
+  presentation: 'Create a short lesson presentation about ',
+  document: 'Create a lesson plan with an IEP goal about ',
+  quiz: 'Create a quiz about ',
+  braille: 'Create braille cards for a lesson about ',
+  nsl: 'Create sign language cards for a lesson about ',
+};
+const NOTES: Partial<Record<OutputKind, string>> = {
+  quiz: 'The quiz sheet comes with an answer key on the last page for the teacher.',
+  braille: 'Dot patterns are drawn on the page. Please have a braille reader check them before classroom use.',
+  nsl: 'Gestures are suggestions unless they come from your NSL glossary. A signer should check them.',
+};
 
 type Phase = 'form' | 'working' | 'done' | 'failed';
 
 export default function Generate() {
   const { token } = useAuth();
-  const { output, ids, names } = useLocalSearchParams<{ output: 'presentation' | 'document'; ids?: string; names?: string }>();
-  const isSlides = output === 'presentation';
+  const { output, ids, names } = useLocalSearchParams<{ output: OutputKind; ids?: string; names?: string }>();
   const materialIds = (ids ?? '').split(',').map(Number).filter(Boolean);
   const fileNames = (names ?? '').split('|').filter(Boolean);
 
-  const [prompt, setPrompt] = useState(isSlides ? 'Create a short lesson presentation about ' : 'Create a lesson plan with an IEP goal about ');
+  const [prompt, setPrompt] = useState(PROMPTS[output] ?? PROMPTS.presentation);
   const [grade, setGrade] = useState(1);
   const [subject, setSubject] = useState('Mathematics');
   const [language, setLanguage] = useState<'nepali' | 'english'>('nepali');
+  const [numQuestions, setNumQuestions] = useState(8);
   const [phase, setPhase] = useState<Phase>('form');
   const [step, setStep] = useState('');
   const [error, setError] = useState('');
@@ -48,7 +69,7 @@ export default function Generate() {
     setPhase('working'); // show progress right away instead of waiting for the server
     setStep('Starting...');
     try {
-      const id = await startGeneration(token, { prompt: prompt.trim(), output, grade, subject, language, material_ids: materialIds });
+      const id = await startGeneration(token, { prompt: prompt.trim(), output, grade, subject, language, material_ids: materialIds, num_questions: output === 'quiz' ? numQuestions : undefined });
       setStep('Waiting to start...');
       timer.current = setInterval(async () => {
         try {
@@ -87,7 +108,7 @@ export default function Generate() {
       <StatusBar style="light" />
       <SafeAreaView edges={['top']} style={s.header}>
         <Pressable onPress={() => router.back()} hitSlop={10}><Text style={s.back}>‹ Back</Text></Pressable>
-        <Text style={s.title}>{isSlides ? 'Create slides' : 'Create lesson plan & IEP'}</Text>
+        <Text style={s.title}>{TITLES[output] ?? 'Create'}</Text>
         <Text style={s.files} numberOfLines={1}>
           {fileNames.length ? `From: ${fileNames.join(', ')}` : 'No files selected: using your description and the curriculum'}
         </Text>
@@ -109,6 +130,15 @@ export default function Generate() {
               {SUBJECTS.map((x) => <Chip key={x} label={x} on={subject === x} onPress={() => setSubject(x)} />)}
             </View>
 
+            {output === 'quiz' && (
+              <>
+                <Text style={s.label}>Number of questions</Text>
+                <View style={s.chips}>
+                  {QUESTION_COUNTS.map((n) => <Chip key={n} label={String(n)} on={numQuestions === n} onPress={() => setNumQuestions(n)} />)}
+                </View>
+              </>
+            )}
+
             <Text style={s.label}>Language</Text>
             <View style={s.chips}>
               <Chip label="नेपाली" on={language === 'nepali'} onPress={() => setLanguage('nepali')} />
@@ -119,6 +149,7 @@ export default function Generate() {
             <ErrorText message={error} />
             <PrimaryButton title="Generate" onPress={start} />
             <Text style={s.note}>This runs on your own server and can take a few minutes.</Text>
+            {NOTES[output] ? <Text style={s.note}>{NOTES[output]}</Text> : null}
           </>
         )}
 

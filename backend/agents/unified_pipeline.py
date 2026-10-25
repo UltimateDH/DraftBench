@@ -135,10 +135,10 @@ def evaluate_asd_plan(plan: dict, language: str) -> tuple[int, list]:
             n = len(b.split())
             if n < 3:
                 penalty += 1
-                feedback.append(f"Slide {idx} bullet '{b}' is too short. Write a full phrase of 4 to 12 words.")
-            elif n > 12:
+                feedback.append(f"Slide {idx} bullet '{b}' is too short. Write a full phrase of 3 to 9 words.")
+            elif n > 10:
                 penalty += 1
-                feedback.append(f"Slide {idx} bullet '{b}' is longer than 12 words.")
+                feedback.append(f"Slide {idx} bullet '{b}' is longer than 10 words.")
         if not (slide.get("key_idea") or "").strip():
             penalty += 1
             feedback.append(f"Slide {idx} has no key_idea sentence.")
@@ -243,6 +243,7 @@ def run_unified_pipeline(
     material_text: str = "",
     material_images: list = None,
     file_tag: str = "",
+    num_questions: int = 8,
     on_progress=None,
 ) -> dict:
     """Executes the complete DraftBench pipeline with self-correction and multi-format exporting."""
@@ -292,6 +293,15 @@ def run_unified_pipeline(
         if isinstance(m, dict) else str(m)
         for m in sources
     ]
+
+    # --- Separate sections: quiz, braille cards and sign-language cards skip the lesson planner ---
+    if intent in ("quiz", "braille", "nsl"):
+        from agents.special_outputs import run_special_output
+        return run_special_output(
+            intent=intent, user_prompt=user_prompt, grade=grade, subject=subject, language=language,
+            topic=topic, cdc_context=cdc_context, sources=sources, material_text=material_text,
+            num_questions=num_questions, say=say, export_dir=EXPORT_DIR, file_tag=file_tag,
+        )
 
     # --- Step 3: CoIEP Writer-Evaluator Loop ---
     print("Step[3]...Planning content with CoIEP Evaluator Loop...")
@@ -344,7 +354,7 @@ TEACHER REQUEST: {user_prompt}
 {feedback_str}
 DESIGN RULES (evidence-based ASD practices):
 1. LITERAL LANGUAGE ONLY — no idioms, metaphors, or sarcasm. Every sentence <= 15 words.
-2. ONE CONCEPT PER SLIDE — maximum 3 bullets per slide. Each bullet is a complete phrase of 4 to 12 words.
+2. ONE CONCEPT PER SLIDE — maximum 3 bullets per slide. Each bullet is a complete phrase of 3 to 9 words.
 3. CLEAN CONTENT ONLY — NEVER output prompt meta-instructions, rubric instructions, or IEP goal headers as slide text or body text. Use IEP goals purely as background context to formulate the educational content.
 4. VISUAL-FIRST — the 'visual_desc' must describe a specific, literal diagram or object model (e.g., 'nucleus with surrounding electrons', 'gold foil experiment deflection'). Never write vague titles like 'diagram of experiment'.
 5. SENSORY SAFETY — flag any potential trigger.
@@ -373,7 +383,7 @@ Return STRICT JSON in this exact schema:
       "slide_type": "intro | concept | example | review",
       "title": "clean lesson topic title",
       "key_idea": "one sentence that states the main idea cleanly",
-      "bullets": ["3 key points", "each a full phrase of 4 to 12 words", "never a single word"],
+      "bullets": ["3 key points", "each a full phrase of 3 to 9 words", "never a single word"],
       "explanation": "2 to 4 short sentences that explain the idea simply",
       "example": "one concrete everyday example",
       "key_terms": [{{"term": "important word", "meaning": "simple meaning"}}],
@@ -440,7 +450,7 @@ CRITICAL:
         return {"error": "planner_failed"}
 
     # --- Step 3b: Enrich Slides with Accessibility (Only if requested or explicit intent) ---
-    include_accessibility = intent in ["braille", "nsl"] or "braille" in user_prompt.lower() or "sign language" in user_prompt.lower()
+    include_accessibility = False  # braille and sign language now have their own sections
     
     if include_accessibility:
         print("Step[3b]...Enriching slides with Braille & NSL Gestures...")

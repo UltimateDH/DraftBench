@@ -31,11 +31,12 @@ MEDIA = {
 
 class GenerateRequest(BaseModel):
     prompt: str = Field(min_length=3, max_length=2000)
-    output: Literal["presentation", "document"]
+    output: Literal["presentation", "document", "quiz", "braille", "nsl"]
     grade: int = Field(ge=1, le=12)
     subject: str = Field(min_length=2, max_length=40)
     language: Literal["nepali", "english"]
     material_ids: List[int] = Field(default=[], max_length=10)
+    num_questions: int = Field(default=8, ge=3, le=20)
 
 
 def load_material(user_id: int, material_ids: List[int], job_id: str):
@@ -98,11 +99,12 @@ def run_job(job_id: str, user_id: int, req: GenerateRequest):
                 forced_language=req.language,
                 material_text=material_text,
                 material_images=material_images,
+                num_questions=req.num_questions,
                 file_tag=f"_{job_id[:8]}",
                 on_progress=lambda msg: job.update(step=msg),
             )
             if result.get("error"):
-                raise RuntimeError("The AI couldn't produce a valid lesson plan. Try again, or simplify the request.")
+                raise RuntimeError(result.get("message") or "The AI couldn't produce a valid result. Try again, or simplify the request.")
             path = next(iter((result.get("files") or {}).values()), None)
             if not path or not os.path.exists(path):
                 raise RuntimeError("The file wasn't created.")

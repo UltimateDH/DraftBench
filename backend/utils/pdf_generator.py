@@ -43,7 +43,7 @@ _IMG_RE = re.compile(r"^!\[(.*?)\]\((.+)\)$")
 
 def _fmt(text: str) -> str:
     """Escape XML characters, then turn **bold** and *italic* markdown into ReportLab tags."""
-    t = escape(text)
+    t = re.sub("[\U0001F300-\U0001FAFF\u2600-\u27BF\uFE0F]", "", escape(text))  # PDF fonts cannot draw emoji
     t = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", t)
     t = re.sub(r"(?<!\w)\*(.+?)\*(?!\w)", r"<i>\1</i>", t)
     return t

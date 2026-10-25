@@ -1,7 +1,6 @@
 import os
 import re
 import uuid
-import cairosvg
 import ollama
 
 IMAGE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "exports", "images")
@@ -72,6 +71,7 @@ STRICT RULES:
 
     png_ok = False
     try:
+        import cairosvg  # loaded only when an icon is drawn, so a missing Cairo library cannot break other sections
         cairosvg.svg2png(url=svg_path, write_to=png_path, output_width=600, output_height=408)
         png_ok = True
     except Exception as err:

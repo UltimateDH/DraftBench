@@ -119,13 +119,16 @@ export async function askChat(token: string, materialIds: number[], message: str
 }
 
 // ---------- Generate (slides / lesson plan + IEP) ----------
+export type OutputKind = 'presentation' | 'document' | 'quiz' | 'braille' | 'nsl';
+
 export type GenerateParams = {
   prompt: string;
-  output: 'presentation' | 'document';
+  output: OutputKind;
   grade: number;
   subject: string;
   language: 'nepali' | 'english';
   material_ids: number[];
+  num_questions?: number;
 };
 
 export type JobStatus = {
