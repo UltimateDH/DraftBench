@@ -1,3 +1,5 @@
+![lDraftBench](logo.png)
+
 # DraftBench
 
 DraftBench is an offline assistant designed for primary school teachers in Nepal. It converts informal classroom observation notes into structured Individualized Education Program (IEP) goals and printable student worksheets aligned with Curriculum Development Centre (CDC) standards.
