@@ -7,6 +7,7 @@ NSL: a verified glossary (data/nsl_glossary.json) wins; otherwise ONE batched AI
 import json
 import os
 import re
+import unicodedata
 from typing import Dict, List, Tuple
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -199,10 +200,42 @@ CONCEPTS:
 Return ONLY a JSON object that maps each number to its description, for example {{"1": "...", "2": "..."}}."""
 
 
-def nsl_descriptions(terms: List[dict], language: str, say=None) -> List[dict]:
-    """terms: [{term, term_en?, meaning?}]. Returns the same items plus description + status.
+def _graphemes(text: str) -> List[str]:
+    """Split into letters, keeping Devanagari vowel signs and marks with their consonant."""
+    out = []
+    for ch in text:
+        if ch.isspace():
+            continue
+        if out and unicodedata.category(ch) in ("Mn", "Mc") or (out and out[-1].endswith("\u094d")):
+            out[-1] += ch
+        else:
+            out.append(ch)
+    return out
 
-    status is "verified" (from the glossary), "suggested" (AI draft, needs a signer to confirm) or "missing".
+
+def _fingerspell(term: str, lang: str) -> str:
+    letters = "-".join(g.upper() if g.isascii() else g for g in _graphemes(term or ""))
+    if lang == "nepali":
+        return (f"स्थापित सङ्केत भेटिएन। यो शब्द अक्षर-अक्षर गरी देखाउनुहोस्: {letters}। "
+                "सहमत सङ्केतबारे साङ्केतिक भाषा जान्ने व्यक्तिसँग सोध्नुहोस्।")
+    return f"No established sign on file. Fingerspell the word: {letters}. Ask an NSL signer for the agreed sign."
+
+
+def _resolve_media(path: str) -> str:
+    if not path:
+        return ""
+    full = path if os.path.isabs(path) else os.path.join(BASE_DIR, path)
+    return full if os.path.exists(full) else ""
+
+
+def nsl_descriptions(terms: List[dict], language: str, say=None) -> List[dict]:
+    """terms: [{term, term_en?, meaning?}]. Returns the same items plus description + status + image/video.
+
+    status:
+      "verified"    - from data/nsl_glossary.json (checked by a signer). May carry "image" and "video_url".
+      "fingerspell" - no sign on file: show the word to fingerspell and ask a signer. (default for unknown words)
+      "suggested"   - AI-drafted gesture, only when env NSL_AI_DRAFTS=1. Always needs a signer to confirm.
+    Glossary entry: {"nucleus": {"en": "...", "ne": "...", "source": "...", "image": "data/nsl/nucleus.jpg", "video_url": "https://..."}}
     """
     say = say or (lambda m: None)
     lang = "nepali" if (language or "").lower() == "nepali" else "english"
@@ -210,18 +243,19 @@ def nsl_descriptions(terms: List[dict], language: str, say=None) -> List[dict]:
     results, need_ai = [], []
 
     for it in terms:
-        row = dict(it, description="", status="missing", source="")
+        row = dict(it, description="", status="missing", source="", image="", video="")
         keys = [str(it.get("term_en") or "").strip().lower(), str(it.get("term") or "").strip().lower()]
         hit = next((glossary[k] for k in keys if k and k in glossary), None)
         if hit:
             desc = hit.get("ne" if lang == "nepali" else "en") or hit.get("en") or hit.get("ne")
             if desc:
-                row.update(description=desc, status="verified", source=hit.get("source", ""))
+                row.update(description=desc, status="verified", source=hit.get("source", ""),
+                           image=_resolve_media(hit.get("image", "")), video=hit.get("video_url", ""))
         results.append(row)
         if row["status"] != "verified":
             need_ai.append(row)
 
-    if need_ai:
+    if need_ai and os.getenv("NSL_AI_DRAFTS") == "1":
         say("Drafting sign descriptions...")
         try:
             import ollama
@@ -236,13 +270,17 @@ def nsl_descriptions(terms: List[dict], language: str, say=None) -> List[dict]:
             )
             data = json.loads(re.search(r"\{.*\}", resp["message"]["content"], re.DOTALL).group(0))
             for i, row in enumerate(need_ai, 1):
-                desc = str(data.get(str(i), "")).strip().strip("\"'")
+                desc = str(data.get(str(i), "")).strip().strip("\"\'")
                 if lang == "nepali" and desc and not desc.endswith("।"):
                     desc = desc.rstrip(".") + "।"
                 if _valid_description(desc, lang):
                     row.update(description=desc, status="suggested")
         except Exception as e:
             print(f"[NSL] could not draft descriptions: {e}")
+
+    for row in results:
+        if row["status"] not in ("verified", "suggested"):
+            row.update(status="fingerspell", description=_fingerspell(row.get("term") or row.get("term_en") or "", lang))
     return results
 
 

@@ -6,7 +6,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import (Flowable, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table,
-                                TableStyle)
+                                TableStyle, Image)
 
 from agents.accessibility_tools import BLANK, UNVERIFIED_SIGNS, legend_entries, translate
 from utils.labels import get_labels
@@ -83,7 +83,7 @@ def _question_block(q, n, S, g):
     items = [Paragraph(f"<b>{n}.</b> {_t(q['question']).replace('___', '__________')}", S["q"])]
     if q["type"] == "mcq":
         for i, opt in enumerate(q["options"]):
-            row = Table([[TickBox(), Paragraph(f"<b>{'ABC'[i]}.</b> {_t(opt)}", S["opt"])]], colWidths=[34, WIDTH - 40])
+            row = Table([[TickBox(), Paragraph(f"<b>{'ABCD'[i]}.</b> {_t(opt)}", S["opt"])]], colWidths=[34, WIDTH - 40])
             row.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("TOPPADDING", (0, 0), (-1, -1), 5),
                                      ("BOTTOMPADDING", (0, 0), (-1, -1), 5), ("LEFTPADDING", (0, 0), (-1, -1), 6)]))
             items.append(row)
@@ -139,7 +139,7 @@ def generate_quiz_pdf(quiz: dict, output_path: str, grade: int, subject: str, la
               Paragraph(f"{_t(g('teacher_copy', 'Teacher copy'))} • {_t(quiz.get('title') or '')}", S["sub"])]
     for q in quiz["questions"]:
         if q["type"] == "mcq":
-            ans = f"{'ABC'[q['answer_index']]}. {q['options'][q['answer_index']]}"
+            ans = f"{'ABCD'[q['answer_index']]}. {q['options'][q['answer_index']]}"
         elif q["type"] == "true_false":
             ans = g("true_label", "True") if q["answer_bool"] else g("false_label", "False")
         else:
@@ -280,18 +280,33 @@ def generate_nsl_pdf(content: dict, items: list, output_path: str, grade: int, s
 
     badge = {"verified": (g("nsl_verified", "Verified sign"), "#15803D"),
              "suggested": (g("nsl_suggested", "Suggested: please check"), "#B45309"),
+             "fingerspell": (g("nsl_fingerspell_badge", "No sign on file: fingerspell"), "#6B5E85"),
              "missing": (g("nsl_missing", "No suggestion yet"), "#6B5E85")}
     for it in items:
         text, color = badge.get(it["status"], badge["missing"])
         desc = it["description"] or g("nsl_missing_hint", "")
         src = f" <font color='#6B5E85'>({_t(it['source'])})</font>" if it.get("source") else ""
+        if it.get("video"):
+            src += f" <font color='#6B5E85'>[{_t(it['video'])}]</font>"
+        photo_h = 70
+        photo_cell = Paragraph(f"<font color='#6B5E85'>{_t(g('nsl_photo', ''))}</font>", S["small"])
+        if it.get("image"):  # a real photo of the verified sign replaces the empty placeholder box
+            try:
+                from PIL import Image as PILImage
+                with PILImage.open(it["image"]) as im:
+                    iw, ih = im.size
+                ratio = min(230 / iw, 150 / ih)
+                photo_cell = Image(it["image"], width=iw * ratio, height=ih * ratio)
+                photo_h = ih * ratio + 10
+            except Exception as e:
+                print(f"[NSL] could not embed image {it['image']}: {e}")
         rows = [
             [Paragraph(_t(it["term"]), S["term"]), Paragraph(f"<font color='{color}'><b>{_t(text)}</b></font>", S["small"])],
             [Paragraph(_t(it.get("meaning") or ""), S["body"]), ""],
             [Paragraph(f"<b>{_t(g('nsl_gesture', 'Gesture'))}:</b> {_t(desc)}{src}", S["opt"]), ""],
-            [Paragraph(f"<font color='#6B5E85'>{_t(g('nsl_photo', ''))}</font>", S["small"]), ""],
+            [photo_cell, ""],
         ]
-        card = Table(rows, colWidths=[WIDTH * 0.62, WIDTH * 0.38], rowHeights=[None, None, None, 70])
+        card = Table(rows, colWidths=[WIDTH * 0.62, WIDTH * 0.38], rowHeights=[None, None, None, photo_h])
         card.setStyle(TableStyle([
             ("SPAN", (0, 1), (1, 1)), ("SPAN", (0, 2), (1, 2)), ("SPAN", (0, 3), (1, 3)),
             ("BOX", (0, 0), (-1, -1), 1, BORDER), ("BACKGROUND", (0, 0), (-1, 0), SOFT),

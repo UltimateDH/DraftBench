@@ -239,9 +239,9 @@ def _content_slide(prs, info, idx, total, L, deva):
     s = prs.slides.add_slide(prs.slide_layouts[6])
     _bg(s, WHITE)
     title = _clean(info.get("title")) or f"{L['slide']} {idx}"
-    key_idea = _shorten(_clean(info.get("key_idea")), 16)
-    bullets = [_shorten(_clean(b), 10) for b in (info.get("bullets") or []) if _clean(b)][:3]
-    example = _shorten(_clean(info.get("example")), 22)
+    key_idea = _shorten(_clean(info.get("key_idea")), 26)
+    bullets = [_shorten(_clean(b), 16) for b in (info.get("bullets") or []) if _clean(b)][:3]
+    example = _shorten(_clean(info.get("example")), 30)
     terms = [t for t in (info.get("key_terms") or []) if isinstance(t, dict) and _clean(t.get("term"))]
     img = info.get("image_path") or info.get("icon_path")
     has_img = bool(img and os.path.exists(img))
@@ -258,12 +258,12 @@ def _content_slide(prs, info, idx, total, L, deva):
     y = 1.75
     if key_idea:
         _rect(s, LX, y, LW, 1.45, fill=SOFT, line=BORDER, radius=0.08)
-        ksz = _fit_size([key_idea], LW - 0.4, 1.45, 32, 22, deva, gap=0)
+        ksz = _fit_size([key_idea], LW - 0.4, 1.45, 30, 16, deva, gap=0)
         _text(s, LX + 0.2, y, LW - 0.4, 1.45, [key_idea], ksz, color=DEEP, bold=True, anchor=MSO_ANCHOR.MIDDLE, deva=deva)
         y += 1.75
     if bullets:
         bmax = 6.7 - y
-        bsz = _fit_size(bullets, LW, bmax, 30, 22, deva, gap=0.5)
+        bsz = _fit_size(bullets, LW, bmax, 28, 16, deva, gap=0.5)
         bh = min(bmax, _est_height(bullets, LW, bsz, deva, 0.5))
         _text(s, LX, y, LW, bh, bullets, bsz, color=TEXT, bullets=True, deva=deva, space_after=bsz * 0.5)
 
@@ -280,7 +280,7 @@ def _content_slide(prs, info, idx, total, L, deva):
                   color=WHITE, anchor=MSO_ANCHOR.MIDDLE, deva=deva)
         else:
             t = terms[0]
-            meaning = _shorten(_clean(t.get("meaning")), 14)
+            meaning = _shorten(_clean(t.get("meaning")), 20)
             _text(s, RX + 0.25, 1.95, RW - 0.5, 0.45, [L.get("key_terms", "Key words")], 16, color=PRIMARY, bold=True, deva=deva)
             _text(s, RX + 0.25, 2.6, RW - 0.5, 1.2, [_clean(t["term"])], _fit_size([_clean(t["term"])], RW - 0.5, 1.2, 40, 26, deva, gap=0),
                   color=DEEP, bold=True, deva=deva)

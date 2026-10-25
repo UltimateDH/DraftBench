@@ -90,6 +90,11 @@ LABELS = {
         "nsl_gesture":           "Gesture",
         "nsl_photo":             "Add a photo or video of the sign here",
         "all_done":              "All done!",
+        "lesson_content":        "Lesson content",
+        "teacher_support":       "Teacher support",
+        "explanation":           "Explanation",
+        "key_points":            "Key points",
+        "nsl_fingerspell_badge": "No sign on file: fingerspell",
     },
     "nepali": {
         "visual_schedule":       "दृश्य तालिका",
@@ -182,6 +187,11 @@ LABELS = {
         "nsl_gesture":           "सङ्केत",
         "nsl_photo":             "यहाँ सङ्केतको फोटो वा भिडियो राख्नुहोस्",
         "all_done":              "सबै सकियो!",
+        "lesson_content":        "पाठको सामग्री",
+        "teacher_support":       "शिक्षकका लागि सहयोग",
+        "explanation":           "व्याख्या",
+        "key_points":            "मुख्य बुँदाहरू",
+        "nsl_fingerspell_badge": "सङ्केत छैन: अक्षर-अक्षर देखाउनुहोस्",
     },
 }
 

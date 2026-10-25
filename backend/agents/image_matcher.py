@@ -1,81 +1,103 @@
-"""Choose the best picture from the teacher's uploaded files for each slide."""
+"""Picks pictures from the teacher's uploaded files for slides, by CONTENT (not by page guesses).
+
+How it works
+- Every extracted picture gets the text of the page it sits on (from the "[Page N]" markers in the material text).
+- Each slide is compared with that text using IDF-weighted keyword overlap on title + key idea + visual description.
+- Best (slide, picture) pairs are assigned first; each picture is used once.
+- A slide with no convincing match gets NO picture (the slide layout then shows its example or key word instead).
+"""
 import math
 import os
 import re
-from typing import List, Optional
 
-EMBED_MODEL = os.getenv("EMBED_MODEL", "nomic-embed-text")
-EMBED_MIN_SCORE = float(os.getenv("IMAGE_MIN_SCORE", "0.55"))   # cosine similarity needed without a page hint
-KEYWORD_MIN_SCORE = 0.12
-PICTURE_SLIDES = {"intro", "concept", "example"}                  # review slides stay text-only
-
-
-def _slide_text(s: dict) -> str:
-    parts = [s.get("title"), s.get("key_idea"), " ".join(s.get("bullets") or []), s.get("explanation")]
-    return " ".join(p for p in parts if p)[:1200]
+STOP = {
+    "the", "and", "for", "with", "that", "this", "from", "are", "was", "were", "has", "have", "had", "its", "their",
+    "into", "which", "what", "when", "where", "how", "why", "can", "will", "not", "but", "all", "any", "each",
+    "than", "then", "there", "these", "those", "they", "them", "about", "also", "other", "such", "more", "most",
+    "some", "one", "two", "use", "used", "using", "diagram", "picture", "image", "figure", "shows", "show",
+}
 
 
-def _tokens(text: str) -> set:
-    return set(re.findall(r"[\w\u0900-\u097F]{3,}", (text or "").lower()))
+def _tokens(text: str) -> list:
+    out = []
+    for w in re.findall(r"[a-z0-9\u0900-\u097F]+", (text or "").lower()):
+        if len(w) < 3 or w in STOP:
+            continue
+        if w.endswith("s") and len(w) > 4 and not w.endswith("ss"):
+            w = w[:-1]  # light plural stemming
+        out.append(w)
+    return out
 
 
-def _keyword_scores(slides: List[dict], images: List[dict]) -> List[List[float]]:
-    st = [_tokens(_slide_text(s)) for s in slides]
-    it = [_tokens(i.get("context", "")) for i in images]
-    return [
-        [len(a & b) / math.sqrt(len(a) * len(b)) if a and b else 0.0 for b in it]
-        for a in st
-    ]
+def _page_texts(material_text: str) -> dict:
+    parts = re.split(r"\[Page (\d+)\]", material_text or "")
+    pages = {}
+    for i in range(1, len(parts) - 1, 2):
+        pages[int(parts[i])] = pages.get(int(parts[i]), "") + " " + parts[i + 1]
+    return pages
 
 
-def _embedding_scores(slides: List[dict], images: List[dict]) -> Optional[List[List[float]]]:
-    try:
-        import ollama
-        texts = [_slide_text(s) or "slide" for s in slides] + [(i.get("context") or "image")[:800] for i in images]
-        vecs = ollama.embed(model=EMBED_MODEL, input=texts)["embeddings"]
-    except Exception as e:
-        print(f"[image_matcher] embeddings unavailable ({e}); using keyword matching")
-        return None
-
-    def cos(u, v):
-        nu = math.sqrt(sum(x * x for x in u)) or 1.0
-        nv = math.sqrt(sum(x * x for x in v)) or 1.0
-        return sum(a * b for a, b in zip(u, v)) / (nu * nv)
-
-    sv, iv = vecs[: len(slides)], vecs[len(slides):]
-    return [[cos(a, b) for b in iv] for a in sv]
+def _image_path(im: dict):
+    return im.get("path") or im.get("image_path") or im.get("file")
 
 
-def assign_images(slides: List[dict], images: List[dict]) -> int:
-    """Sets slide['image_path'], slide['image_page'] where a picture fits. Returns how many slides got one."""
+def assign_images(slides: list, images: list, material_text: str = "", min_score: float = 0.30, min_shared: int = 2) -> int:
+    """Sets slide['image_path'] and slide['image_page'] where a picture really matches. Returns how many matched."""
     if not slides or not images:
         return 0
-    scores = _embedding_scores(slides, images)
-    min_score = EMBED_MIN_SCORE
-    if scores is None:
-        scores, min_score = _keyword_scores(slides, images), KEYWORD_MIN_SCORE
+    pages = _page_texts(material_text)
 
-    single_source = len({i.get('material') for i in images}) <= 1
-    used, assigned = set(), 0
-    for si, s in enumerate(slides):
-        if (s.get("slide_type") or "concept") not in PICTURE_SLIDES:
+    pics = []
+    for im in images:
+        path = _image_path(im)
+        if not path or not os.path.exists(path):
             continue
-        free = [j for j in range(len(images)) if j not in used]
-        if not free:
-            break
-        pick = None
-        page = s.get("source_page")
-        if isinstance(page, int) and single_source:  # the planner said which page this slide is based on: trust that first
-            near = [j for j in free if isinstance(images[j].get("page"), int) and abs(images[j]["page"] - page) <= 1]
-            if near:
-                pick = max(near, key=lambda j: scores[si][j])
-        if pick is None:
-            best = max(free, key=lambda j: scores[si][j])
-            if scores[si][best] >= min_score:
-                pick = best
-        if pick is not None:
-            used.add(pick)
-            s["image_path"] = images[pick]["path"]
-            s["image_page"] = images[pick].get("page")
-            assigned += 1
-    return assigned
+        w, h = im.get("width"), im.get("height")
+        if isinstance(w, (int, float)) and isinstance(h, (int, float)) and (w < 100 or h < 100):
+            continue  # logos, bullets and rules
+        context = im.get("context") or im.get("caption") or pages.get(im.get("page"), "")
+        toks = set(_tokens(context))
+        if toks:
+            pics.append({"path": path, "page": im.get("page"), "toks": toks})
+    if not pics:
+        return 0
+
+    n = len(pics)
+    df = {}
+    for p in pics:
+        for t in p["toks"]:
+            df[t] = df.get(t, 0) + 1
+    idf = lambda t: math.log((n + 1) / (df.get(t, 0) + 1)) + 1.0
+
+    pairs = []
+    for si, s in enumerate(slides):
+        weights = {}
+        for text, weight in ((s.get("title"), 2.0), (s.get("visual_desc"), 2.0), (s.get("key_idea"), 1.0)):
+            for t in _tokens(text or ""):
+                weights[t] = max(weights.get(t, 0), weight)
+        for t in [x["term"] for x in (s.get("key_terms") or []) if isinstance(x, dict) and x.get("term")]:
+            for tok in _tokens(t):
+                weights[tok] = max(weights.get(tok, 0), 1.5)
+        total = sum(w * idf(t) for t, w in weights.items())
+        if not total:
+            continue
+        for pi, p in enumerate(pics):
+            shared = [t for t in weights if t in p["toks"]]
+            if len(shared) < min_shared:
+                continue
+            score = sum(weights[t] * idf(t) for t in shared) / total
+            if score >= min_score:
+                pairs.append((score, si, pi))
+
+    pairs.sort(reverse=True)
+    used_slides, used_pics, matched = set(), set(), 0
+    for score, si, pi in pairs:
+        if si in used_slides or pi in used_pics:
+            continue
+        used_slides.add(si)
+        used_pics.add(pi)
+        slides[si]["image_path"] = pics[pi]["path"]
+        if pics[pi]["page"]:
+            slides[si]["image_page"] = pics[pi]["page"]
+        matched += 1
+    return matched
