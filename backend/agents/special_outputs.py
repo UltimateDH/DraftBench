@@ -43,6 +43,11 @@ def run_special_output(intent, user_prompt, grade, subject, language, topic, cdc
             return {**result, "error": "content_failed",
                     "message": "The AI couldn't find enough signable words for this topic. Try again."}
         items = nsl_descriptions(content["key_terms"], language, say)
+        
+        # --- USE THE SVG AGENT INSTEAD OF PIXART FOR INSTANT, CPU-FRIENDLY SIGN ICONS ---
+        from agents.svg_agent import add_nsl_svg_illustrations
+        items = add_nsl_svg_illustrations(items, topic if isinstance(topic, str) else "", say)
+        
         say("Building the sign language cards...")
         path = os.path.join(export_dir, f"{stem}_NSL{file_tag}.pdf")
         generate_nsl_pdf(content, items, path, grade, subject, language)
