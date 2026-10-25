@@ -2,14 +2,12 @@ version: '3.8'
 
 services:
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: maheshpanta/draftbench-backend:latest
     container_name: draftbench_backend
     ports:
       - "8000:8000"
     volumes:
-      - ./backend:/app   # Automatically syncs code and the data/db/draftbench.db file
+      - ./backend:/app
     environment:
       - DATABASE_URL=sqlite:///./data/db/draftbench.db
       - SECRET_KEY=local_hackathon_secret_key_123
@@ -18,9 +16,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: maheshpanta/draftbench-frontend:latest
     container_name: draftbench_frontend
     ports:
       - "8081:8081"
