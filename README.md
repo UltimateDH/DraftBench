@@ -472,7 +472,7 @@ Then open:
 
 <!-- TODO: replace YOUR_VIDEO_ID (the part after v= in your YouTube URL) in BOTH links below -->
 
-[![DraftBench Demo Video](https://img.youtube.com/vi/YOUR_VIDEO_ID/maxresdefault.jpg)](https://www.youtube.com/watch?v=YOUR_VIDEO_ID)
+[![DraftBench Demo Video](https://img.youtube.com/vi/JI5m0mv-ijM/maxresdefault.jpg)](https://www.youtube.com/watch?v=JI5m0mv-ijM)
 
 | Asset                                               | Link                                                            |
 | --------------------------------------------------- | --------------------------------------------------------------- |
