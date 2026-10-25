@@ -6,9 +6,9 @@
 
 **An offline-first, air-gapped special education assistant for primary school teachers in Nepal.**
 
-[![Platform](https://img.shields.io/badge/platform-React%20Native%20(Expo)-blueviolet)](#tech-stack)
+[![Platform](<https://img.shields.io/badge/platform-React%20Native%20(Expo)-blueviolet>)](#tech-stack)
 [![Backend](https://img.shields.io/badge/backend-FastAPI-009688)](#tech-stack)
-[![LLM](https://img.shields.io/badge/LLM-Qwen%202.5%207B%20(Ollama)-orange)](#tech-stack)
+[![LLM](<https://img.shields.io/badge/LLM-Qwen%202.5%207B%20(Ollama)-orange>)](#tech-stack)
 [![Vector DB](https://img.shields.io/badge/vector%20DB-ChromaDB-informational)](#tech-stack)
 [![Mode](https://img.shields.io/badge/mode-100%25%20offline-success)](#offline--air-gapped-deployment)
 [![Build with AI](https://img.shields.io/badge/Build%20with%20AI-qualified-brightgreen)](#how-draftbench-qualifies-as-build-with-ai)
@@ -52,7 +52,7 @@
 
 **DraftBench** is an offline-first special education assistant built for primary school teachers in Nepal, many of whom work in low-connectivity or no-connectivity environments with limited specialist support.
 
-A teacher types or dictates an informal classroom observation, such as *"Aarav gets upset when the routine changes and can't hold a pencil for long"*. DraftBench turns it into:
+A teacher types or dictates an informal classroom observation, such as _"Aarav gets upset when the routine changes and can't hold a pencil for long"_. DraftBench turns it into:
 
 - **Structured Individualized Education Program (IEP) goals** (measurable, time-bound, and tied to the observation).
 - **Autism-friendly lesson plans** (predictable structure, visual schedules, low sensory load, explicit transitions).
@@ -76,35 +76,35 @@ DraftBench runs a complete AI pipeline on a school laptop. The teacher writes wh
 
 ## Submission Checklist
 
-| Requirement | Status | Where to find it |
-|---|---|---|
-| **Public GitHub repository** with everything needed to run and understand the solution | Done | [github.com/UltimateDH/DraftBench](https://github.com/UltimateDH/DraftBench), run via [Getting Started](#getting-started) |
-| **Documentation:** README | Done | This file |
-| **Documentation:** architecture overview | Done | [System Architecture](#system-architecture), [Agent Pipeline in Detail](#agent-pipeline-in-detail) |
-| **Documentation:** technology details | Done | [Tech Stack](#tech-stack), [Models Used](#models-used), [Configuration](#configuration) |
-| **Documentation:** limitations / future improvements | Done | [Limitations](#limitations), [Future Improvements](#future-improvements) |
-| **Working demo** of the solution and its key capabilities | Done | [Working Demo](#working-demo) |
-| **Demo video / presentation** showing problem, solution, workflow, and value | Done | [Demo Video / Presentation](#demo-video--presentation) |
-| **Qualifies as "Build with AI"** (AI reasons over data as part of core logic) | Done | [How DraftBench Qualifies as "Build with AI"](#how-draftbench-qualifies-as-build-with-ai) |
-| **AI usage disclosure** naming the exact file/function where AI output is consumed programmatically | Done | [AI Usage Disclosure](#ai-usage-disclosure) and the standalone [AI_USAGE.md](AI_USAGE.md) |
+| Requirement                                                                                         | Status | Where to find it                                                                                                          |
+| --------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------- |
+| **Public GitHub repository** with everything needed to run and understand the solution              | Done   | [github.com/UltimateDH/DraftBench](https://github.com/UltimateDH/DraftBench), run via [Getting Started](#getting-started) |
+| **Documentation:** README                                                                           | Done   | This file                                                                                                                 |
+| **Documentation:** architecture overview                                                            | Done   | [System Architecture](#system-architecture), [Agent Pipeline in Detail](#agent-pipeline-in-detail)                        |
+| **Documentation:** technology details                                                               | Done   | [Tech Stack](#tech-stack), [Models Used](#models-used), [Configuration](#configuration)                                   |
+| **Documentation:** limitations / future improvements                                                | Done   | [Limitations](#limitations), [Future Improvements](#future-improvements)                                                  |
+| **Working demo** of the solution and its key capabilities                                           | Done   | [Working Demo](#working-demo)                                                                                             |
+| **Demo video / presentation** showing problem, solution, workflow, and value                        | Done   | [Demo Video / Presentation](#demo-video--presentation)                                                                    |
+| **Qualifies as "Build with AI"** (AI reasons over data as part of core logic)                       | Done   | [How DraftBench Qualifies as "Build with AI"](#how-draftbench-qualifies-as-build-with-ai)                                 |
+| **AI usage disclosure** naming the exact file/function where AI output is consumed programmatically | Done   | [AI Usage Disclosure](#ai-usage-disclosure) and the standalone [AI_USAGE.md](AI_USAGE.md)                                 |
 
 ---
 
 ## Key Features
 
-| Capability | Description |
-|---|---|
-| **Observation → IEP** | Converts free-form teacher notes into structured, measurable IEP goals through an iterative planner loop. |
+| Capability                          | Description                                                                                                                                                                                                                                                                                                                                  |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Observation → IEP**               | Converts free-form teacher notes into structured, measurable IEP goals through an iterative planner loop.                                                                                                                                                                                                                                    |
 | **Nepali (Devanagari) and English** | Prompts can be written in Nepali or English. The language is detected automatically and carried through every stage: lessons, teacher support, IEP goals, quizzes, and sign-language descriptions are written in that language. The rubric flags Hindi vocabulary in Nepali output, and the curriculum extractor enforces pure Nepali terms. |
-| **ASD Rubric Evaluation** | Every generated lesson is scored by a rule-based, ASD-oriented rubric (literal factual sentences, short bullets, uniform structure, no repetition). Drafts scoring below **8** go back to the model with itemised corrections (up to 3 attempts). |
-| **CDC-Aligned RAG** | Retrieves relevant CDC curriculum guidelines from a local ChromaDB index (embeddings via `nomic-embed-text`). |
-| **Cultural Localization** | Replaces generic textbook examples with Nepali currency (रू), local flora and fauna, festivals, and regional contexts. |
-| **Local Vector Asset Engine** | `svg_agent.py` has the local model draw clean SVG diagrams and schematic NSL hand-sign illustrations (with a built-in fallback vector), rendered to PNG by CairoSVG for PDF and PPTX output. No image-diffusion models are used, so it runs on modest hardware. |
-| **Braille Output** | Transcribes content into Braille-ready output for embossing or tactile review. |
-| **NSL Gesture Vectors** | Produces directional vector diagrams for Nepali Sign Language movements. |
-| **Multi-Format Export** | PDF (ReportLab), PPTX (python-pptx), Braille, NSL vectors, and quiz sheets. |
-| **Cross-Platform Client** | One React Native (Expo) codebase for Android phones and tablets (and iOS where available), also served as a web app at port `8081` by Docker so any browser on the classroom network can use it. |
-| **Authentication** | Local JWT-based auth for teacher accounts, with no external identity provider. |
+| **ASD Rubric Evaluation**           | Every generated lesson is scored by a rule-based, ASD-oriented rubric (literal factual sentences, short bullets, uniform structure, no repetition). Drafts scoring below **8** go back to the model with itemised corrections (up to 3 attempts).                                                                                            |
+| **CDC-Aligned RAG**                 | Retrieves relevant CDC curriculum guidelines from a local ChromaDB index (embeddings via `nomic-embed-text`).                                                                                                                                                                                                                                |
+| **Cultural Localization**           | Replaces generic textbook examples with Nepali currency (रू), local flora and fauna, festivals, and regional contexts.                                                                                                                                                                                                                       |
+| **Local Vector Asset Engine**       | `svg_agent.py` has the local model draw clean SVG diagrams and schematic NSL hand-sign illustrations (with a built-in fallback vector), rendered to PNG by CairoSVG for PDF and PPTX output. No image-diffusion models are used, so it runs on modest hardware.                                                                              |
+| **Braille Output**                  | Transcribes content into Braille-ready output for embossing or tactile review.                                                                                                                                                                                                                                                               |
+| **NSL Gesture Vectors**             | Produces directional vector diagrams for Nepali Sign Language movements.                                                                                                                                                                                                                                                                     |
+| **Multi-Format Export**             | PDF (ReportLab), PPTX (python-pptx), Braille, NSL vectors, and quiz sheets.                                                                                                                                                                                                                                                                  |
+| **Cross-Platform Client**           | One React Native (Expo) codebase for Android phones and tablets (and iOS where available), also served as a web app at port `8081` by Docker so any browser on the classroom network can use it.                                                                                                                                             |
+| **Authentication**                  | Local JWT-based auth for teacher accounts, with no external identity provider.                                                                                                                                                                                                                                                               |
 
 ---
 
@@ -112,14 +112,14 @@ DraftBench runs a complete AI pipeline on a school laptop. The teacher writes wh
 
 In DraftBench, AI does real work inside the solution. Model output is **parsed, validated, scored, stored, and used to route control flow by program logic**, not just rendered back to the user as a chat reply.
 
-| Where AI sits in the core logic | What the model does | How the system consumes it |
-|---|---|---|
-| **Intent classification and parameter extraction** | Reads the teacher's free-text prompt and returns JSON: intent, topic, grade, subject, language, ASD-adaptation flag. | Parsed in code; `intent` selects the pipeline branch and grade and subject become retrieval filters. |
-| **CoIEP writer-evaluator loop** | Writes structured lesson slides as JSON, then teacher support and the IEP goal. | A rule-based ASD rubric scores each draft; a score below 8 triggers regeneration with itemised corrections (max 3 attempts). |
-| **Embeddings and retrieval** | `nomic-embed-text` embeds the CDC curriculum records and the topic query. | ChromaDB similarity search with grade and subject metadata filters; retrieved standards are injected into prompts. |
-| **Curriculum extraction** | Extracts topics, competencies, and teaching strategies from CDC textbook pages as schema-constrained JSON. | Validated with Pydantic, de-duplicated, and stored as curriculum records for embedding. |
-| **Quiz and study-sheet generation** | Writes quiz questions and key points and terms as JSON. | Cleaned, de-duplicated, and length-filtered with retries and fallbacks; rendered to PDF and Braille or sign-language cards. |
-| **Vector illustration generation** | Writes SVG markup for diagrams and schematic sign-language hand illustrations. | Extracted by pattern match, rendered by CairoSVG to PNG, and embedded in exports. |
+| Where AI sits in the core logic                    | What the model does                                                                                                  | How the system consumes it                                                                                                   |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| **Intent classification and parameter extraction** | Reads the teacher's free-text prompt and returns JSON: intent, topic, grade, subject, language, ASD-adaptation flag. | Parsed in code; `intent` selects the pipeline branch and grade and subject become retrieval filters.                         |
+| **CoIEP writer-evaluator loop**                    | Writes structured lesson slides as JSON, then teacher support and the IEP goal.                                      | A rule-based ASD rubric scores each draft; a score below 8 triggers regeneration with itemised corrections (max 3 attempts). |
+| **Embeddings and retrieval**                       | `nomic-embed-text` embeds the CDC curriculum records and the topic query.                                            | ChromaDB similarity search with grade and subject metadata filters; retrieved standards are injected into prompts.           |
+| **Curriculum extraction**                          | Extracts topics, competencies, and teaching strategies from CDC textbook pages as schema-constrained JSON.           | Validated with Pydantic, de-duplicated, and stored as curriculum records for embedding.                                      |
+| **Quiz and study-sheet generation**                | Writes quiz questions and key points and terms as JSON.                                                              | Cleaned, de-duplicated, and length-filtered with retries and fallbacks; rendered to PDF and Braille or sign-language cards.  |
+| **Vector illustration generation**                 | Writes SVG markup for diagrams and schematic sign-language hand illustrations.                                       | Extracted by pattern match, rendered by CairoSVG to PNG, and embedded in exports.                                            |
 
 Without the models there is nothing to route, retrieve, plan, or draw, and the rubric evaluator, exporters, and retrieval code all operate on model output. The exact files and functions are listed in [AI Usage Disclosure](#ai-usage-disclosure).
 
@@ -127,17 +127,17 @@ Without the models there is nothing to route, retrieve, plan, or draw, and the r
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| **Frontend** | React Native (Expo), cross-platform mobile and tablet client for offline classroom deployment; served as an Expo web app on port `8081` in Docker |
-| **Backend** | FastAPI served by Uvicorn |
-| **LLM Engine** | Local [Ollama](https://ollama.com) running `qwen2.5:7b-instruct` |
-| **Embeddings** | `nomic-embed-text` (via Ollama) |
-| **Vector Database** | ChromaDB (persistent, local) for RAG over CDC curriculum guidelines |
+| Layer                   | Technology                                                                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Frontend**            | React Native (Expo), cross-platform mobile and tablet client for offline classroom deployment; served as an Expo web app on port `8081` in Docker      |
+| **Backend**             | FastAPI served by Uvicorn                                                                                                                              |
+| **LLM Engine**          | Local [Ollama](https://ollama.com) running `qwen2.5:7b-instruct`                                                                                       |
+| **Embeddings**          | `nomic-embed-text` (via Ollama)                                                                                                                        |
+| **Vector Database**     | ChromaDB (persistent, local) for RAG over CDC curriculum guidelines                                                                                    |
 | **Visual Asset Engine** | Local-model SVG vector generator agent (`svg_agent.py`, with built-in fallback vectors) rendered locally with **CairoSVG** (no image-diffusion models) |
-| **Exporters** | ReportLab (PDF), python-pptx (PPTX), Braille transcriber, NSL gesture vector generator, quiz engine |
-| **Persistence** | SQLAlchemy ORM with a local relational database for users and materials |
-| **Packaging** | Docker and Docker Compose |
+| **Exporters**           | ReportLab (PDF), python-pptx (PPTX), Braille transcriber, NSL gesture vector generator, quiz engine                                                    |
+| **Persistence**         | SQLAlchemy ORM with a local relational database for users and materials                                                                                |
+| **Packaging**           | Docker and Docker Compose                                                                                                                              |
 
 ---
 
@@ -192,16 +192,16 @@ React Expo Frontend <---> FastAPI Backend <---> Local LLM (Qwen 2.5)
 
 The generation pipeline is orchestrated by `backend/agents/unified_pipeline.py`. Each stage is a focused, independently testable module.
 
-| # | Stage | Responsibility |
-|---|---|---|
-| 1 | **Teacher Prompt** | The Expo client submits an informal observation and optional context (grade, subject, student profile, desired outputs). |
-| 2 | **Intent Classifier** | `classify_intent_and_extract_params()` in `unified_pipeline.py` returns intent (`chat`, `presentation`, `document`, `quiz`, `braille`, `nsl`), topic, grade, subject, and language as JSON, and routes the request. |
-| 3 | **CDC RAG** | `query_curriculum_rag()` in `rag.py` queries ChromaDB for relevant CDC curriculum guidelines (embeddings from `nomic-embed-text`). Retrieved chunks ground generation in official standards. |
-| 4 | **CoIEP Planner Loop** | `plan_slide_content()` drafts structured lesson slides with Qwen 2.5 and the retrieved context; `plan_teacher_support()` then drafts teacher scripts, accommodations, and the IEP goal, and `merge_support()` combines them. |
-| 5 | **ASD Rubric Evaluator** | `evaluate_content_plan()` scores each draft out of 10 with rule-based checks for ASD-friendly content (literal factual sentences, 2 to 3 short bullets per slide, no instructions or repeats, on topic, one example per slide). **Score >= 8 passes.** Anything lower goes back to the writer with itemised corrections, for up to 3 attempts; the best-scoring draft is kept. |
-| 6 | **SVG Agent & CairoSVG** | `generate_educational_svg()` in `svg_agent.py` has Qwen 2.5 draw SVG diagrams and schematic NSL hand-sign illustrations (built-in fallback vector if the output is unusable); CairoSVG rasterizes them to PNG. NSL cards always use it; lesson slides use it when `DRAFTBENCH_AI_SVG=1`. `image_matcher.py` pairs the teacher's uploaded images to slides. |
-| 7 | **Document Exporter** | `markdown_builder.py`, `special_outputs.py`, `quiz_agent.py`, and `accessibility_tools.py` assemble the final artifacts. |
-| 8 | **Exports** | PDF (ReportLab), PPTX (python-pptx), Braille, NSL vector diagrams, and quizzes are returned to the client for viewing, sharing, or printing. |
+| #   | Stage                    | Responsibility                                                                                                                                                                                                                                                                                                                                                                 |
+| --- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | **Teacher Prompt**       | The Expo client submits an informal observation and optional context (grade, subject, student profile, desired outputs).                                                                                                                                                                                                                                                       |
+| 2   | **Intent Classifier**    | `classify_intent_and_extract_params()` in `unified_pipeline.py` returns intent (`chat`, `presentation`, `document`, `quiz`, `braille`, `nsl`), topic, grade, subject, and language as JSON, and routes the request.                                                                                                                                                            |
+| 3   | **CDC RAG**              | `query_curriculum_rag()` in `rag.py` queries ChromaDB for relevant CDC curriculum guidelines (embeddings from `nomic-embed-text`). Retrieved chunks ground generation in official standards.                                                                                                                                                                                   |
+| 4   | **CoIEP Planner Loop**   | `plan_slide_content()` drafts structured lesson slides with Qwen 2.5 and the retrieved context; `plan_teacher_support()` then drafts teacher scripts, accommodations, and the IEP goal, and `merge_support()` combines them.                                                                                                                                                   |
+| 5   | **ASD Rubric Evaluator** | `evaluate_content_plan()` scores each draft out of 10 with rule-based checks for ASD-friendly content (literal factual sentences, 2 to 3 short bullets per slide, no instructions or repeats, on topic, one example per slide). **Score >= 8 passes.** Anything lower goes back to the writer with itemised corrections, for up to 3 attempts; the best-scoring draft is kept. |
+| 6   | **SVG Agent & CairoSVG** | `generate_educational_svg()` in `svg_agent.py` has Qwen 2.5 draw SVG diagrams and schematic NSL hand-sign illustrations (built-in fallback vector if the output is unusable); CairoSVG rasterizes them to PNG. NSL cards always use it; lesson slides use it when `DRAFTBENCH_AI_SVG=1`. `image_matcher.py` pairs the teacher's uploaded images to slides.                     |
+| 7   | **Document Exporter**    | `markdown_builder.py`, `special_outputs.py`, `quiz_agent.py`, and `accessibility_tools.py` assemble the final artifacts.                                                                                                                                                                                                                                                       |
+| 8   | **Exports**              | PDF (ReportLab), PPTX (python-pptx), Braille, NSL vector diagrams, and quizzes are returned to the client for viewing, sharing, or printing.                                                                                                                                                                                                                                   |
 
 > **Why SVG instead of image diffusion?** SVG output is resolution-independent, tiny on disk, printable at any size, and runs on a standard school laptop or low-end tablet with no GPU. It also keeps the system fully air-gapped and avoids shipping multi-gigabyte diffusion weights.
 
@@ -266,53 +266,53 @@ DraftBench/
 
 **Backend: `backend/`**
 
-| File / Folder | Purpose |
-|---|---|
-| `main.py` | FastAPI application entry point. Registers routers, CORS, and startup hooks. |
-| `auth_router.py` / `auth_utils.py` | Teacher registration and login, password hashing, and JWT issuance and validation. |
-| `chat_router.py` | Conversational endpoints for iterative refinement of observations and plans. |
-| `generate_router.py` | Main generation endpoints that trigger the unified pipeline and exports. |
-| `materials_router.py` | Listing, retrieving, and managing previously generated materials. |
-| `database.py` / `models.py` / `schemas.py` | SQLAlchemy engine and session, ORM models, and Pydantic request/response schemas. |
-| `rag.py` | ChromaDB client, embedding calls to `nomic-embed-text`, and retrieval logic. |
-| `pdf_ingestor.py` | Extracts curriculum records from CDC textbook PDFs page by page with the local model; the records are later embedded and indexed by `rag.py`. |
-| `testing_model.py` | Quick local sanity checks against the Ollama model. |
-| `agents/unified_pipeline.py` | Orchestrates classifier → RAG → planner loop → evaluator → visuals → export. Contains the intent classifier, writer-evaluator loop, and teacher-support / IEP planner. |
-| `agents/content_agent.py` | Shared JSON chat helper (`chat_json`) and `build_key_content()` for Braille and sign-language study sheets. |
-| `agents/svg_agent.py` | Model-driven SVG illustration generator (diagrams, NSL hand-sign schematics) with fallback vectors and CairoSVG rendering. |
-| `agents/image_matcher.py` | Maps concepts to local vector or image assets. |
-| `agents/markdown_builder.py` | Builds structured Markdown intermediates for export. |
-| `agents/quiz_agent.py` | Generates CDC-aligned quizzes and answer keys. |
-| `agents/special_outputs.py` | Routes quiz, Braille, and NSL requests to their builders and PDF generators. |
-| `agents/accessibility_tools.py` | Braille translation and NSL description helpers (verified glossary, fingerspelling fallback, optional model drafts). |
-| `data/` | Local data, such as CDC source documents and the persistent ChromaDB store. |
-| `storage/` | Generated artifacts (PDF, PPTX, SVG, Braille, and so on). |
-| `utils/` | Shared helpers. |
+| File / Folder                              | Purpose                                                                                                                                                                |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `main.py`                                  | FastAPI application entry point. Registers routers, CORS, and startup hooks.                                                                                           |
+| `auth_router.py` / `auth_utils.py`         | Teacher registration and login, password hashing, and JWT issuance and validation.                                                                                     |
+| `chat_router.py`                           | Conversational endpoints for iterative refinement of observations and plans.                                                                                           |
+| `generate_router.py`                       | Main generation endpoints that trigger the unified pipeline and exports.                                                                                               |
+| `materials_router.py`                      | Listing, retrieving, and managing previously generated materials.                                                                                                      |
+| `database.py` / `models.py` / `schemas.py` | SQLAlchemy engine and session, ORM models, and Pydantic request/response schemas.                                                                                      |
+| `rag.py`                                   | ChromaDB client, embedding calls to `nomic-embed-text`, and retrieval logic.                                                                                           |
+| `pdf_ingestor.py`                          | Extracts curriculum records from CDC textbook PDFs page by page with the local model; the records are later embedded and indexed by `rag.py`.                          |
+| `testing_model.py`                         | Quick local sanity checks against the Ollama model.                                                                                                                    |
+| `agents/unified_pipeline.py`               | Orchestrates classifier → RAG → planner loop → evaluator → visuals → export. Contains the intent classifier, writer-evaluator loop, and teacher-support / IEP planner. |
+| `agents/content_agent.py`                  | Shared JSON chat helper (`chat_json`) and `build_key_content()` for Braille and sign-language study sheets.                                                            |
+| `agents/svg_agent.py`                      | Model-driven SVG illustration generator (diagrams, NSL hand-sign schematics) with fallback vectors and CairoSVG rendering.                                             |
+| `agents/image_matcher.py`                  | Maps concepts to local vector or image assets.                                                                                                                         |
+| `agents/markdown_builder.py`               | Builds structured Markdown intermediates for export.                                                                                                                   |
+| `agents/quiz_agent.py`                     | Generates CDC-aligned quizzes and answer keys.                                                                                                                         |
+| `agents/special_outputs.py`                | Routes quiz, Braille, and NSL requests to their builders and PDF generators.                                                                                           |
+| `agents/accessibility_tools.py`            | Braille translation and NSL description helpers (verified glossary, fingerspelling fallback, optional model drafts).                                                   |
+| `data/`                                    | Local data, such as CDC source documents and the persistent ChromaDB store.                                                                                            |
+| `storage/`                                 | Generated artifacts (PDF, PPTX, SVG, Braille, and so on).                                                                                                              |
+| `utils/`                                   | Shared helpers.                                                                                                                                                        |
 
 **Frontend: `frontend/`**
 
-| Path | Purpose |
-|---|---|
-| `App.js` | Expo app root. |
-| `src/screens/` | Screen-level views: login, observation input, generation results, materials library. |
-| `src/components/` | Reusable UI components (inputs, cards, previews, export actions). |
-| `src/navigation/` | React Navigation stacks and tabs. |
-| `src/services/` | API client that talks to the FastAPI backend over the local network. |
-| `assets/` | Static images, fonts, and icons bundled with the app. |
+| Path              | Purpose                                                                              |
+| ----------------- | ------------------------------------------------------------------------------------ |
+| `App.js`          | Expo app root.                                                                       |
+| `src/screens/`    | Screen-level views: login, observation input, generation results, materials library. |
+| `src/components/` | Reusable UI components (inputs, cards, previews, export actions).                    |
+| `src/navigation/` | React Navigation stacks and tabs.                                                    |
+| `src/services/`   | API client that talks to the FastAPI backend over the local network.                 |
+| `assets/`         | Static images, fonts, and icons bundled with the app.                                |
 
 ---
 
 ## Prerequisites
 
-| Requirement | Notes |
-|---|---|
-| **Docker** and **Docker Compose** | Recommended for running the backend stack. |
-| **Ollama** | Required for local LLM and embedding inference. |
-| **Python 3.10+** | Only needed for running the backend without Docker. |
-| **Node.js 18+** and **npm** | Required for the Expo frontend. |
-| **Cairo system libraries** | Required by CairoSVG (`libcairo2`, `libffi`, `pango`). Pre-installed in the Docker image. |
-| **RAM** | 16 GB recommended for `qwen2.5:7b-instruct`. 8 GB is workable with quantized variants. |
-| **Disk** | About 6 to 8 GB for model weights, plus space for the vector store and generated materials. |
+| Requirement                       | Notes                                                                                       |
+| --------------------------------- | ------------------------------------------------------------------------------------------- |
+| **Docker** and **Docker Compose** | Recommended for running the backend stack.                                                  |
+| **Ollama**                        | Required for local LLM and embedding inference.                                             |
+| **Python 3.10+**                  | Only needed for running the backend without Docker.                                         |
+| **Node.js 18+** and **npm**       | Required for the Expo frontend.                                                             |
+| **Cairo system libraries**        | Required by CairoSVG (`libcairo2`, `libffi`, `pango`). Pre-installed in the Docker image.   |
+| **RAM**                           | 16 GB recommended for `qwen2.5:7b-instruct`. 8 GB is workable with quantized variants.      |
+| **Disk**                          | About 6 to 8 GB for model weights, plus space for the vector store and generated materials. |
 
 ---
 
@@ -325,10 +325,10 @@ ollama pull qwen2.5:7b-instruct
 ollama pull nomic-embed-text
 ```
 
-| Model | Role |
-|---|---|
+| Model                 | Role                                                                                                                                |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `qwen2.5:7b-instruct` | Intent classification, lesson and IEP generation, quiz and study-sheet generation, curriculum extraction, SVG illustration drafting |
-| `nomic-embed-text` | Embeddings for CDC curriculum RAG in ChromaDB |
+| `nomic-embed-text`    | Embeddings for CDC curriculum RAG in ChromaDB                                                                                       |
 
 Verify the models are available:
 
@@ -367,12 +367,12 @@ docker compose up --build
 
 One command starts both containers: the **FastAPI backend** and the **React Native (Expo) frontend served as a web app**.
 
-| Service | URL |
-|---|---|
-| **Web app (Expo web frontend)** | `http://localhost:8081` |
-| API root | `http://localhost:8000` |
-| Interactive docs (Swagger UI) | `http://localhost:8000/docs` |
-| ReDoc | `http://localhost:8000/redoc` |
+| Service                         | URL                           |
+| ------------------------------- | ----------------------------- |
+| **Web app (Expo web frontend)** | `http://localhost:8081`       |
+| API root                        | `http://localhost:8000`       |
+| Interactive docs (Swagger UI)   | `http://localhost:8000/docs`  |
+| ReDoc                           | `http://localhost:8000/redoc` |
 
 Open `http://localhost:8081` in a browser to use DraftBench. Tablets and phones on the same local network can open `http://<laptop-LAN-IP>:8081` in their browser, with no app install needed.
 
@@ -458,10 +458,10 @@ docker compose up --build
 
 Then open:
 
-| What | URL |
-|---|---|
-| **Demo app (Expo web frontend)** | `http://localhost:8081` |
-| Backend API docs | `http://localhost:8000/docs` |
+| What                                         | URL                           |
+| -------------------------------------------- | ----------------------------- |
+| **Demo app (Expo web frontend)**             | `http://localhost:8081`       |
+| Backend API docs                             | `http://localhost:8000/docs`  |
 | Demo on a tablet or phone (same local Wi-Fi) | `http://<laptop-LAN-IP>:8081` |
 
 <!-- TODO: add 2-4 screenshots or GIFs here, e.g. ![Observation input](docs/screenshots/observation.png) -->
@@ -471,12 +471,13 @@ Then open:
 ## Demo Video / Presentation
 
 <!-- TODO: replace YOUR_VIDEO_ID (the part after v= in your YouTube URL) in BOTH links below -->
+
 [![DraftBench Demo Video](https://img.youtube.com/vi/YOUR_VIDEO_ID/maxresdefault.jpg)](https://www.youtube.com/watch?v=YOUR_VIDEO_ID)
 
-| Asset | Link |
-|---|---|
+| Asset                                               | Link                                                              |
+| --------------------------------------------------- | ----------------------------------------------------------------- |
 | **Demo video** (problem, solution, workflow, value) | [Watch on YouTube](https://www.youtube.com/watch?v=YOUR_VIDEO_ID) |
-| **Presentation slides** | `TODO: add slides URL or path` |
+| **Presentation slides**                             | [Click on this for Presentation](DraftBench_Slides_demo.pdf)      |
 
 ### What the Video and Slides Cover
 
@@ -494,23 +495,29 @@ DraftBench is designed to run on machines that **never touch the internet**. Pre
 ### Staging Checklist (Connected Machine)
 
 1. **Pull LLM and embedding models**
+
    ```bash
    ollama pull qwen2.5:7b-instruct
    ollama pull nomic-embed-text
    ```
+
    Copy the Ollama model directory (default `~/.ollama/models`) to the target machine's equivalent path.
 
 2. **Build and export Docker images**
+
    ```bash
    docker compose build
    docker save -o draftbench-images.tar $(docker compose config --images)
    ```
+
    On the target machine:
+
    ```bash
    docker load -i draftbench-images.tar
    ```
 
 3. **Vendor Python dependencies** (for non-Docker installs)
+
    ```bash
    pip download -r backend/requirements.txt -d wheelhouse/
    # on the air-gapped machine:
@@ -518,9 +525,11 @@ DraftBench is designed to run on machines that **never touch the internet**. Pre
    ```
 
 4. **Vendor frontend dependencies** (only for running Expo outside Docker; the Docker image already bundles them)
+
    ```bash
    cd frontend && npm ci
    ```
+
    Archive `node_modules/` (or use a local npm cache or mirror).
 
 5. **Pre-ingest CDC guidelines**: run `pdf_ingestor.py` on the staging machine and ship the populated `backend/data/` ChromaDB directory.
@@ -552,14 +561,14 @@ DraftBench is designed to run on machines that **never touch the internet**. Pre
 
 ## Output Formats
 
-| Export | Engine | Typical Use |
-|---|---|---|
-| **PDF** | ReportLab (+ CairoSVG for vectors) | Printable worksheets, IEP summaries, lesson plans |
-| **PPTX** | python-pptx | Classroom slides with visual schedules |
-| **Braille** | `accessibility_tools.py` | Embosser-ready or tactile-review transcriptions |
-| **NSL Cards** | `accessibility_tools.py` + `svg_agent.py` | Sign descriptions and schematic hand-sign illustrations |
-| **Quiz** | `quiz_agent.py` | CDC-aligned assessments with answer keys |
-| **Illustrations** | `svg_agent.py` + CairoSVG | Slide diagrams and sign schematics (SVG rendered to PNG) embedded in PDF and PPTX |
+| Export            | Engine                                    | Typical Use                                                                       |
+| ----------------- | ----------------------------------------- | --------------------------------------------------------------------------------- |
+| **PDF**           | ReportLab (+ CairoSVG for vectors)        | Printable worksheets, IEP summaries, lesson plans                                 |
+| **PPTX**          | python-pptx                               | Classroom slides with visual schedules                                            |
+| **Braille**       | `accessibility_tools.py`                  | Embosser-ready or tactile-review transcriptions                                   |
+| **NSL Cards**     | `accessibility_tools.py` + `svg_agent.py` | Sign descriptions and schematic hand-sign illustrations                           |
+| **Quiz**          | `quiz_agent.py`                           | CDC-aligned assessments with answer keys                                          |
+| **Illustrations** | `svg_agent.py` + CairoSVG                 | Slide diagrams and sign schematics (SVG rendered to PNG) embedded in PDF and PPTX |
 
 All generated artifacts are written under `backend/storage/`.
 
@@ -569,12 +578,12 @@ All generated artifacts are written under `backend/storage/`.
 
 FastAPI auto-generates interactive documentation at **`/docs`** once the backend is running. The API is organized by router:
 
-| Router | Module | Responsibility |
-|---|---|---|
-| Auth | `auth_router.py` | Register, log in, and validate teacher sessions (JWT) |
-| Chat | `chat_router.py` | Conversational refinement of observations and generated plans |
-| Generate | `generate_router.py` | Trigger the unified pipeline and request specific export formats |
-| Materials | `materials_router.py` | Browse, fetch, and manage previously generated materials |
+| Router    | Module                | Responsibility                                                   |
+| --------- | --------------------- | ---------------------------------------------------------------- |
+| Auth      | `auth_router.py`      | Register, log in, and validate teacher sessions (JWT)            |
+| Chat      | `chat_router.py`      | Conversational refinement of observations and generated plans    |
+| Generate  | `generate_router.py`  | Trigger the unified pipeline and request specific export formats |
+| Materials | `materials_router.py` | Browse, fetch, and manage previously generated materials         |
 
 Example (illustrative; consult `/docs` for exact routes and schemas):
 
@@ -625,15 +634,15 @@ npx expo start --clear
 
 ## Troubleshooting
 
-| Symptom | Likely Cause | Fix |
-|---|---|---|
-| App cannot reach the backend | Using `localhost` from a physical device | Use the laptop's LAN IP in `frontend/src/services/` and make sure both devices share the same network |
-| `Connection refused` to Ollama from Docker | Container cannot see host Ollama | Set `OLLAMA_HOST=http://host.docker.internal:11434` (or add Linux `extra_hosts`), or run Ollama as a Compose service |
-| `model not found` | Models not pulled | Run `ollama pull qwen2.5:7b-instruct` and `ollama pull nomic-embed-text` |
-| CairoSVG `OSError: no library called "cairo"` | Missing system libraries | Install `libcairo2` (Linux), `cairo` via Homebrew (macOS), or use the Docker image |
-| Slow generation | CPU-only inference on limited RAM | Use a smaller quantization and close other apps; lesson generation makes several model calls per request |
-| Empty or irrelevant RAG results | CDC records not ingested or not embedded | Run `python pdf_ingestor.py`, then `python rag.py`, and confirm `backend/data/chromadb` is populated |
-| Lessons never reach a score of 8 | Model output keeps breaking a rubric rule | Read the `[Content Evaluator]` log lines; the best-scoring of the 3 drafts is still used, so review it before use |
+| Symptom                                       | Likely Cause                              | Fix                                                                                                                  |
+| --------------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| App cannot reach the backend                  | Using `localhost` from a physical device  | Use the laptop's LAN IP in `frontend/src/services/` and make sure both devices share the same network                |
+| `Connection refused` to Ollama from Docker    | Container cannot see host Ollama          | Set `OLLAMA_HOST=http://host.docker.internal:11434` (or add Linux `extra_hosts`), or run Ollama as a Compose service |
+| `model not found`                             | Models not pulled                         | Run `ollama pull qwen2.5:7b-instruct` and `ollama pull nomic-embed-text`                                             |
+| CairoSVG `OSError: no library called "cairo"` | Missing system libraries                  | Install `libcairo2` (Linux), `cairo` via Homebrew (macOS), or use the Docker image                                   |
+| Slow generation                               | CPU-only inference on limited RAM         | Use a smaller quantization and close other apps; lesson generation makes several model calls per request             |
+| Empty or irrelevant RAG results               | CDC records not ingested or not embedded  | Run `python pdf_ingestor.py`, then `python rag.py`, and confirm `backend/data/chromadb` is populated                 |
+| Lessons never reach a score of 8              | Model output keeps breaking a rubric rule | Read the `[Content Evaluator]` log lines; the best-scoring of the 3 drafts is still used, so review it before use    |
 
 ---
 
@@ -675,20 +684,20 @@ DraftBench uses **open-weight models served locally by Ollama**: `qwen2.5:7b-ins
 
 The complete, formal disclosure (models, licenses, output contracts, validation, and failure handling) is in [**AI_USAGE.md**](AI_USAGE.md).
 
-| # | Capability | File | Function | Model | How the output is consumed programmatically |
-|---|---|---|---|---|---|
-| 1 | Intent classification and parameter extraction | `backend/agents/unified_pipeline.py` | `classify_intent_and_extract_params()` | `qwen2.5:7b-instruct` | JSON parsed; `intent` selects the pipeline branch; grade and subject become RAG filters; language selects prompt instructions. |
-| 2 | CoIEP writer | `backend/agents/unified_pipeline.py` | `plan_slide_content()` via `_chat_json()` | `qwen2.5:7b-instruct` | Strict JSON slides, repaired by `normalize_plan()` and passed to the evaluator. |
-| 3 | CoIEP evaluator (rule-based rubric on model output) | `backend/agents/unified_pipeline.py` | `evaluate_content_plan()` | none (rule-based) | `score >= 8` accepts the draft; otherwise itemised corrections are injected into the next prompt (max 3 attempts, best draft kept). |
-| 4 | Teacher support and IEP goal | `backend/agents/unified_pipeline.py` | `plan_teacher_support()`, `merge_support()` | `qwen2.5:7b-instruct` | Merged into the lesson plan used by the Markdown, PDF, and PPTX builders. |
-| 5 | CDC query embedding and retrieval | `backend/rag.py` | `query_curriculum_rag()` | `nomic-embed-text` | ChromaDB similarity search with grade and subject filters; retrieved standards are injected into prompts. |
-| 6 | CDC index embedding | `backend/rag.py` | `initialize_vector_database()` | `nomic-embed-text` | Vectors upserted into the persistent ChromaDB collection. |
-| 7 | Curriculum extraction from textbook pages | `backend/pdf_ingestor.py` | `extract_from_single_page()` | `qwen2.5:7b-instruct` | Schema-constrained JSON validated by Pydantic, de-duplicated, saved as curriculum records. |
-| 8 | Quiz generation | `backend/agents/quiz_agent.py` | `build_quiz()` | `qwen2.5:7b-instruct` | Questions cleaned, de-duplicated, and quota-checked; rendered to the quiz PDF. |
-| 9 | Braille and sign-language study sheets | `backend/agents/content_agent.py` | `build_key_content()` | `qwen2.5:7b-instruct` | Key points and terms length-filtered; drive Braille translation and sign-term selection. |
-| 10 | Dynamic vector asset generation | `backend/agents/svg_agent.py` | `generate_educational_svg()` | `qwen2.5:7b-instruct` | SVG extracted by pattern match (fallback vector if missing), rendered by CairoSVG to PNG, embedded in exports. |
-| 11 | Sign instruction and schematic hand sign | `backend/agents/svg_agent.py` | `generate_hand_sign_instruction_and_illustration()`, `add_nsl_svg_illustrations()` | `qwen2.5:7b-instruct` | Instruction JSON becomes the card text and the prompt for item 10. |
-| 12 | Sign description drafts (optional, `NSL_AI_DRAFTS=1`) | `backend/agents/accessibility_tools.py` | `nsl_descriptions()` | `qwen2.5:7b-instruct` | Validated, then flagged `suggested` for signer review. |
+| #   | Capability                                            | File                                    | Function                                                                           | Model                 | How the output is consumed programmatically                                                                                         |
+| --- | ----------------------------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Intent classification and parameter extraction        | `backend/agents/unified_pipeline.py`    | `classify_intent_and_extract_params()`                                             | `qwen2.5:7b-instruct` | JSON parsed; `intent` selects the pipeline branch; grade and subject become RAG filters; language selects prompt instructions.      |
+| 2   | CoIEP writer                                          | `backend/agents/unified_pipeline.py`    | `plan_slide_content()` via `_chat_json()`                                          | `qwen2.5:7b-instruct` | Strict JSON slides, repaired by `normalize_plan()` and passed to the evaluator.                                                     |
+| 3   | CoIEP evaluator (rule-based rubric on model output)   | `backend/agents/unified_pipeline.py`    | `evaluate_content_plan()`                                                          | none (rule-based)     | `score >= 8` accepts the draft; otherwise itemised corrections are injected into the next prompt (max 3 attempts, best draft kept). |
+| 4   | Teacher support and IEP goal                          | `backend/agents/unified_pipeline.py`    | `plan_teacher_support()`, `merge_support()`                                        | `qwen2.5:7b-instruct` | Merged into the lesson plan used by the Markdown, PDF, and PPTX builders.                                                           |
+| 5   | CDC query embedding and retrieval                     | `backend/rag.py`                        | `query_curriculum_rag()`                                                           | `nomic-embed-text`    | ChromaDB similarity search with grade and subject filters; retrieved standards are injected into prompts.                           |
+| 6   | CDC index embedding                                   | `backend/rag.py`                        | `initialize_vector_database()`                                                     | `nomic-embed-text`    | Vectors upserted into the persistent ChromaDB collection.                                                                           |
+| 7   | Curriculum extraction from textbook pages             | `backend/pdf_ingestor.py`               | `extract_from_single_page()`                                                       | `qwen2.5:7b-instruct` | Schema-constrained JSON validated by Pydantic, de-duplicated, saved as curriculum records.                                          |
+| 8   | Quiz generation                                       | `backend/agents/quiz_agent.py`          | `build_quiz()`                                                                     | `qwen2.5:7b-instruct` | Questions cleaned, de-duplicated, and quota-checked; rendered to the quiz PDF.                                                      |
+| 9   | Braille and sign-language study sheets                | `backend/agents/content_agent.py`       | `build_key_content()`                                                              | `qwen2.5:7b-instruct` | Key points and terms length-filtered; drive Braille translation and sign-term selection.                                            |
+| 10  | Dynamic vector asset generation                       | `backend/agents/svg_agent.py`           | `generate_educational_svg()`                                                       | `qwen2.5:7b-instruct` | SVG extracted by pattern match (fallback vector if missing), rendered by CairoSVG to PNG, embedded in exports.                      |
+| 11  | Sign instruction and schematic hand sign              | `backend/agents/svg_agent.py`           | `generate_hand_sign_instruction_and_illustration()`, `add_nsl_svg_illustrations()` | `qwen2.5:7b-instruct` | Instruction JSON becomes the card text and the prompt for item 10.                                                                  |
+| 12  | Sign description drafts (optional, `NSL_AI_DRAFTS=1`) | `backend/agents/accessibility_tools.py` | `nsl_descriptions()`                                                               | `qwen2.5:7b-instruct` | Validated, then flagged `suggested` for signer review.                                                                              |
 
 ### Execution Environment
 
