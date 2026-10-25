@@ -4,6 +4,10 @@ DraftBench is an offline assistant designed for primary school teachers in Nepal
 
 The application runs entirely locally on standard laptop hardware without an internet connection.
 
+# System Workflow
+
+![Sytem Workflow](system-flow.svg)
+
 ## Features
 
 - Offline Execution: Runs locally using quantized Qwen 2.5 models via Ollama or llama-cpp.
